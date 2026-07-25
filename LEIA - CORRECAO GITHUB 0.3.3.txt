@@ -1,0 +1,15 @@
+SMART FINANCE 0.3.3 - CORRECAO DA GERACAO DO APK
+
+ERROS CORRIGIDOS
+- setup-node nao encontrava os caminhos usados para cache.
+- setup-java nao encontrava arquivos Gradle porque o projeto Android ainda nao existia.
+
+COMO APLICAR
+1. Extraia este ZIP dentro da pasta original do projeto enviada ao GitHub.
+2. Escolha substituir os arquivos existentes.
+3. Execute: APLICAR CORRECAO E ENVIAR AO GITHUB.bat
+4. Abra o GitHub > Acoes > 02 - Gerar APK Android.
+5. Aguarde a marca verde.
+6. Baixe o artefato Smart-Finance-APK.
+
+NAO ALTERE E NAO APAGUE OS QUATRO SEGREDOS DA CHAVE.

@@ -3,7 +3,7 @@ name: 02 - Gerar APK Android
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, principal]
     paths:
       - 'mobile-app/**'
       - 'scripts/mobile/**'
@@ -15,7 +15,7 @@ permissions:
 jobs:
   gerar-apk:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     defaults:
       run:
@@ -25,19 +25,21 @@ jobs:
       - name: Baixar código do repositório
         uses: actions/checkout@v4
 
+      # Não ativamos cache aqui. O projeto Android e o package-lock ainda podem
+      # não existir nesta etapa, e setup-node/setup-java encerram o trabalho
+      # quando tentam localizar arquivos de cache inexistentes.
       - name: Preparar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
 
       - name: Preparar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
 
-      - name: Validar configuração
+      - name: Validar arquivos e segredos
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -45,6 +47,8 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           $missing = @()
+          if (-not (Test-Path 'mobile-app/package.json')) { $missing += 'mobile-app/package.json' }
+          if (-not (Test-Path 'mobile-app/capacitor.config.ts')) { $missing += 'mobile-app/capacitor.config.ts' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_BASE64)) { $missing += 'ANDROID_KEYSTORE_BASE64' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_PASSWORD)) { $missing += 'ANDROID_KEYSTORE_PASSWORD' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS)) { $missing += 'ANDROID_KEY_ALIAS' }
@@ -64,24 +68,27 @@ jobs:
       - name: Criar e sincronizar projeto Android
         working-directory: mobile-app
         run: |
-          if (-not (Test-Path 'android\gradlew.bat')) {
+          if (-not (Test-Path 'android/gradlew.bat')) {
             npx cap add android
           }
           npx cap sync android
 
       - name: Aplicar ajustes Android
-        run: |
-          ./scripts/mobile/Aplicar-Ajustes-Android.ps1 "$pwd\mobile-app\android"
+        run: ./scripts/mobile/Aplicar-Ajustes-Android.ps1 "$pwd/mobile-app/android"
 
       - name: Restaurar chave de assinatura
         working-directory: mobile-app/android
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          $bytes = [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
-          [IO.File]::WriteAllBytes("$pwd\smart-finance-release.jks", $bytes)
+          try {
+            $bytes = [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64.Trim())
+            [IO.File]::WriteAllBytes("$pwd/smart-finance-release.jks", $bytes)
+          } catch {
+            throw 'ANDROID_KEYSTORE_BASE64 não contém uma chave válida em Base64.'
+          }
 
-      - name: Configurar assinatura de release
+      - name: Configurar assinatura de lançamento
         working-directory: mobile-app/android/app
         run: |
           @'
@@ -114,18 +121,23 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: .\gradlew.bat assembleRelease --stacktrace
+        run: .\gradlew.bat assembleRelease --no-daemon --stacktrace
 
       - name: Preparar APK para download
         run: |
+          $source = 'mobile-app/android/app/build/outputs/apk/release/app-release.apk'
+          if (-not (Test-Path $source)) {
+            throw "O Gradle terminou, mas o APK não foi encontrado em: $source"
+          }
           New-Item -ItemType Directory -Path APK -Force | Out-Null
-          Copy-Item 'mobile-app\android\app\build\outputs\apk\release\app-release.apk' 'APK\Smart-Finance.apk'
-          $hash = (Get-FileHash 'APK\Smart-Finance.apk' -Algorithm SHA256).Hash
-          "SHA256: $hash" | Set-Content 'APK\Smart-Finance-SHA256.txt'
+          Copy-Item $source 'APK/Smart-Finance.apk' -Force
+          $hash = (Get-FileHash 'APK/Smart-Finance.apk' -Algorithm SHA256).Hash
+          "SHA256: $hash" | Set-Content 'APK/Smart-Finance-SHA256.txt'
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: Smart-Finance-APK
           path: APK/
+          if-no-files-found: error
           retention-days: 30
