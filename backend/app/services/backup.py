@@ -18,6 +18,13 @@ def _consistent_database_copy(target: Path) -> None:
         source_connection.close()
 
 
+def create_database_export() -> Path:
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    target = BACKUPS_DIR / f".smart-finance-export-{timestamp}.db"
+    _consistent_database_copy(target)
+    return target
+
+
 def create_backup(force: bool = False) -> Path:
     today = datetime.now().strftime("%Y-%m-%d")
     existing = sorted(BACKUPS_DIR.glob(f"smart-finance-{today}*.zip"))

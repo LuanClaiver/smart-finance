@@ -36,7 +36,7 @@ async def lifespan(_app: FastAPI):
     mdns.stop()
 
 
-app = FastAPI(title="Smart Finance API", version="0.2.6", lifespan=lifespan)
+app = FastAPI(title="Smart Finance API", version="0.3.5", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -65,7 +65,7 @@ app.include_router(backups.router)
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Smart Finance", "version": "0.2.6"}
+    return {"status": "ok", "app": "Smart Finance", "version": "0.3.5"}
 
 
 if FRONTEND_DIST.exists():

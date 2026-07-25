@@ -69,6 +69,20 @@ function expenseDeadlineTitle(item: Expense): string {
   return ''
 }
 
+
+function paymentMethodLabel(value: string): string {
+  const labels: Record<string, string> = {
+    pix: 'Pix', debit: 'Débito', cash: 'Dinheiro', transfer: 'Transferência', boleto: 'Boleto', credit_card: 'Cartão de crédito',
+  }
+  return labels[value] || value || 'Não informada'
+}
+
+function formatDate(value?: string): string {
+  if (!value) return 'Não informada'
+  const [year, month, day] = value.split('-')
+  return year && month && day ? `${day}/${month}/${year}` : value
+}
+
 export default function ExpensesPage() {
   const route = readNavigationTarget('expenses')
   const targetId = route.itemId
@@ -83,6 +97,10 @@ export default function ExpensesPage() {
   const [expenseStatus, setExpenseStatus] = useState('pending')
   const [paidDate, setPaidDate] = useState('')
   const [editing, setEditing] = useState<Expense | null>(null)
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
+  const [attachmentUrl, setAttachmentUrl] = useState('')
+  const [attachmentLoading, setAttachmentLoading] = useState(false)
+  const [attachmentError, setAttachmentError] = useState('')
   const [error, setError] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
   const requestVersion = useRef(0)
@@ -149,6 +167,33 @@ export default function ExpensesPage() {
   useEffect(() => {
     if (targetId && items.some((item) => item.id === targetId)) scrollToTarget(`[data-expense-id="${targetId}"]`)
   }, [items, targetId])
+
+
+  useEffect(() => {
+    let cancelled = false
+    let objectUrl = ''
+    setAttachmentUrl('')
+    setAttachmentError('')
+    if (!selectedExpense?.attachment_path) {
+      setAttachmentLoading(false)
+      return () => undefined
+    }
+    setAttachmentLoading(true)
+    api<Blob>(`/expenses/${selectedExpense.id}/attachment`, { cache: 'no-store' })
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setAttachmentUrl(objectUrl)
+      })
+      .catch((err) => {
+        if (!cancelled) setAttachmentError(err instanceof Error ? err.message : 'Não foi possível abrir o comprovante.')
+      })
+      .finally(() => { if (!cancelled) setAttachmentLoading(false) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [selectedExpense?.id, selectedExpense?.attachment_path])
 
   function openNew() {
     setEditing(null)
@@ -271,6 +316,7 @@ export default function ExpensesPage() {
     try {
       await api(`/expenses/${id}`, { method: 'DELETE' })
       setItems((current) => current.filter((expense) => expense.id !== id))
+      if (selectedExpense?.id === id) setSelectedExpense(null)
       await loadExpenses(month)
       toast.success('Despesa excluída', 'O lançamento foi removido da lista.')
     } catch (err) {
@@ -332,9 +378,39 @@ export default function ExpensesPage() {
       </>}
       <div className="form-actions"><button className="primary-button">{editing ? 'Salvar alterações' : 'Salvar'}</button><button type="button" className="secondary-button" onClick={closeForm}>Cancelar</button></div>
     </form></ModalCard>}
+    {selectedExpense && <ModalCard onClose={() => setSelectedExpense(null)} label={`Detalhes da despesa ${selectedExpense.description}`} wide>
+      <article className="panel expense-detail-panel">
+        <div className="expense-detail-header">
+          <div><small>Despesa</small><h3>{expenseDescription(selectedExpense)}</h3></div>
+          <span className={`status ${selectedExpense.status}`}>{selectedExpense.status === 'paid' ? 'Paga' : 'Pendente'}</span>
+        </div>
+        <dl className="expense-detail-grid">
+          <div><dt>Valor</dt><dd>{money(Number(selectedExpense.amount))}</dd></div>
+          <div><dt>Vencimento</dt><dd>{formatDate(selectedExpense.due_date)}</dd></div>
+          <div><dt>Forma de pagamento</dt><dd>{paymentMethodLabel(selectedExpense.card_id ? 'credit_card' : selectedExpense.payment_method)}</dd></div>
+          <div><dt>Conta</dt><dd>{accounts.find((item) => item.id === selectedExpense.account_id)?.name || 'Não informada'}</dd></div>
+          <div><dt>Categoria</dt><dd>{categories.find((item) => item.id === selectedExpense.category_id)?.name || 'Sem categoria'}</dd></div>
+          <div><dt>Estabelecimento</dt><dd>{selectedExpense.merchant || 'Não informado'}</dd></div>
+          {selectedExpense.card_id && <div><dt>Cartão</dt><dd>{cards.find((item) => item.id === selectedExpense.card_id)?.name || 'Cartão'}</dd></div>}
+          {selectedExpense.card_id && <div><dt>Data da compra</dt><dd>{formatDate(selectedExpense.purchase_date)}</dd></div>}
+          {selectedExpense.paid_date && <div><dt>Data do pagamento</dt><dd>{formatDate(selectedExpense.paid_date)}</dd></div>}
+          {selectedExpense.installment_number && <div><dt>Parcela</dt><dd>{selectedExpense.installment_number}/{selectedExpense.total_installments}</dd></div>}
+        </dl>
+        {selectedExpense.notes && <div className="expense-detail-notes"><strong>Observações</strong><p>{selectedExpense.notes}</p></div>}
+        <section className="expense-attachment-preview">
+          <h4>Comprovante</h4>
+          {!selectedExpense.attachment_path && <p className="muted-text">Nenhum comprovante anexado.</p>}
+          {attachmentLoading && <p className="muted-text">Carregando comprovante...</p>}
+          {attachmentError && <div className="form-error">{attachmentError}</div>}
+          {attachmentUrl && selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <a className="secondary-button attachment-open-button" href={attachmentUrl} target="_blank" rel="noreferrer">Abrir comprovante em PDF</a>}
+          {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} />}
+        </section>
+        <div className="form-actions"><button className="secondary-button" onClick={() => setSelectedExpense(null)}>Fechar</button></div>
+      </article>
+    </ModalCard>}
     {error && <div className="form-error">{error}</div>}
     {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
     <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>
-    <section className="table-panel"><table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Tipo</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>{items.map((item) => <tr key={item.id} data-expense-id={item.id} tabIndex={-1} title={expenseDeadlineTitle(item)} className={[targetId === item.id ? 'target-row' : '', expenseDeadlineClass(item)].filter(Boolean).join(' ')}><td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}</div></td><td>{item.due_date}</td><td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td><td>{money(Number(item.amount))}</td><td><span className={`status ${item.status}`}>{item.status === 'paid' ? 'Paga' : 'Pendente'}</span></td><td className="row-actions">{item.status !== 'paid' && <button onClick={() => markPaid(item)}>Pagar</button>}<button onClick={() => openEdit(item)}>Editar</button><label className="attachment-button">{item.attachment_path ? 'Trocar comprovante' : 'Anexar'}<input type="file" accept="image/*,.pdf" onChange={(event) => uploadAttachment(item.id, event.target.files?.[0])} /></label><button className="danger-text" onClick={() => remove(item.id)}>Excluir</button></td></tr>)}</tbody></table>{items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}</section>
+    <section className="table-panel"><table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Tipo</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>{items.map((item) => <tr key={item.id} data-expense-id={item.id} tabIndex={0} title={`${expenseDeadlineTitle(item)}${expenseDeadlineTitle(item) ? ' • ' : ''}Clique para ver os detalhes`} className={[targetId === item.id ? 'target-row' : '', expenseDeadlineClass(item), 'expense-row-clickable'].filter(Boolean).join(' ')} onClick={() => setSelectedExpense(item)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedExpense(item) } }}><td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}{item.attachment_path && <small className="block expense-has-attachment">📎 Comprovante anexado</small>}</div></td><td>{item.due_date}</td><td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td><td>{money(Number(item.amount))}</td><td><span className={`status ${item.status}`}>{item.status === 'paid' ? 'Paga' : 'Pendente'}</span></td><td className="row-actions" onClick={(event) => event.stopPropagation()}>{item.status !== 'paid' && <button onClick={() => markPaid(item)}>Pagar</button>}<button onClick={() => openEdit(item)}>Editar</button><label className="attachment-button">{item.attachment_path ? 'Trocar comprovante' : 'Anexar'}<input type="file" accept="image/*,.pdf" onChange={(event) => uploadAttachment(item.id, event.target.files?.[0])} /></label><button className="danger-text" onClick={() => remove(item.id)}>Excluir</button></td></tr>)}</tbody></table>{items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}</section>
   </>
 }

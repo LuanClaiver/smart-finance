@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -244,6 +245,18 @@ def delete_expense(item_id: int, owner_id: int = Depends(resolve_owner_id), db: 
     db.delete(item)
     db.commit()
     return {"message": "Despesa excluída"}
+
+
+@router.get("/expenses/{item_id}/attachment")
+def read_attachment(item_id: int, owner_id: int = Depends(resolve_owner_id), db: Session = Depends(get_db)):
+    item = _owned(db, Expense, item_id, owner_id)
+    if not item.attachment_path:
+        raise HTTPException(status_code=404, detail="Esta despesa não possui comprovante")
+    storage_root = STORAGE_DIR.resolve()
+    target = (STORAGE_DIR / item.attachment_path).resolve()
+    if storage_root not in target.parents or not target.is_file():
+        raise HTTPException(status_code=404, detail="Comprovante não encontrado")
+    return FileResponse(target, filename=target.name)
 
 
 @router.post("/expenses/{item_id}/attachment")

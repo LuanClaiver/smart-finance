@@ -20,49 +20,65 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('')
-    const formElement = event.currentTarget
-    const form = new FormData(formElement)
-    if (form.get('new_password') !== form.get('confirm_password')) { const message = 'As novas senhas não conferem.'; setError(message); toast.warning('Verifique as senhas', message); return }
+    const form = new FormData(event.currentTarget)
+    if (form.get('new_password') !== form.get('confirm_password')) { const warning = 'As novas senhas não conferem.'; setError(warning); toast.warning('Verifique as senhas', warning); return }
     try {
       const response = await api<{ message: string; token: string }>('/auth/change-password', { method: 'POST', ...jsonBody({ current_password: form.get('current_password'), new_password: form.get('new_password') }) })
       setToken(response.token); setMessage(response.message); passwordFormRef.current?.reset()
-      const refreshed = await api<User>('/auth/me'); onUser(refreshed)
+      onUser(await api<User>('/auth/me'))
       toast.success('Senha alterada', response.message)
-    } catch (err) { const message = err instanceof Error ? err.message : 'Erro ao alterar senha'; setError(message); toast.error('Não foi possível alterar a senha', message) }
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao alterar senha'; setError(failure); toast.error('Não foi possível alterar a senha', failure) }
   }
 
   async function changeRecoveryKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('')
-    const formElement = event.currentTarget
-    const form = new FormData(formElement)
+    const form = new FormData(event.currentTarget)
     try {
       const response = await api<{ message: string }>('/auth/change-recovery-key', { method: 'POST', ...jsonBody({ current_password: form.get('current_password'), new_recovery_key: form.get('new_recovery_key') }) })
-      setMessage(response.message); recoveryFormRef.current?.reset()
-      toast.success('Chave de recuperação alterada', response.message)
-    } catch (err) { const message = err instanceof Error ? err.message : 'Erro ao alterar chave'; setError(message); toast.error('Não foi possível alterar a chave', message) }
+      setMessage(response.message); recoveryFormRef.current?.reset(); toast.success('Chave de recuperação alterada', response.message)
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao alterar chave'; setError(failure); toast.error('Não foi possível alterar a chave', failure) }
   }
 
   async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('')
-    const formElement = event.currentTarget
-    const form = new FormData(formElement)
+    const form = new FormData(event.currentTarget)
     try {
       await api('/categories', { method: 'POST', ...jsonBody({ name: form.get('name'), kind: form.get('kind'), is_active: true }) })
-      setMessage('Categoria criada.'); categoryFormRef.current?.reset(); await loadCategories()
-      toast.success('Categoria criada', String(form.get('name')))
-    } catch (err) { const message = err instanceof Error ? err.message : 'Erro ao criar categoria'; setError(message); toast.error('Não foi possível criar a categoria', message) }
+      setMessage('Categoria criada.'); categoryFormRef.current?.reset(); await loadCategories(); toast.success('Categoria criada', String(form.get('name')))
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao criar categoria'; setError(failure); toast.error('Não foi possível criar a categoria', failure) }
   }
 
   async function toggleCategory(item: Category) {
     try {
       await api(`/categories/${item.id}`, { method: 'PATCH', ...jsonBody({ name: item.name, kind: item.kind, is_active: !item.is_active }) })
-      await loadCategories()
-      toast.success(item.is_active ? 'Categoria ocultada' : 'Categoria ativada', item.name)
-    } catch (err) { const message = err instanceof Error ? err.message : 'Erro ao atualizar categoria'; setError(message); toast.error('Não foi possível atualizar a categoria', message) }
+      await loadCategories(); toast.success(item.is_active ? 'Categoria ocultada' : 'Categoria ativada', item.name)
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao atualizar categoria'; setError(failure); toast.error('Não foi possível atualizar a categoria', failure) }
   }
 
   async function createBackup() {
-    try { const result = await api<{ message: string; name: string }>('/backups', { method: 'POST' }); setMessage(`${result.message}: ${result.name}`); await loadBackups(); toast.success('Backup criado', result.name) } catch (err) { const message = err instanceof Error ? err.message : 'Erro no backup'; setError(message); toast.error('Não foi possível criar o backup', message) }
+    try {
+      const result = await api<{ message: string; name: string }>('/backups', { method: 'POST' })
+      setMessage(`${result.message}: ${result.name}`); await loadBackups(); toast.success('Backup criado', result.name)
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro no backup'; setError(failure); toast.error('Não foi possível criar o backup', failure) }
+  }
+
+  async function exportDatabase() {
+    try {
+      setError('')
+      const blob = await api<Blob>('/backups/export-database')
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `smart-finance-${new Date().toISOString().slice(0, 10)}.db`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Banco de dados exportado', 'O arquivo SQLite foi enviado para a pasta Downloads do navegador.')
+    } catch (err) {
+      const failure = err instanceof Error ? err.message : 'Erro ao exportar banco'
+      setError(failure); toast.error('Não foi possível exportar o banco', failure)
+    }
   }
 
   return <>
@@ -73,8 +89,8 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       <form ref={recoveryFormRef} className="panel" onSubmit={changeRecoveryKey}><h3>Chave de recuperação</h3><p>Guarde a chave fora do sistema. Ela permite redefinir sua senha sem ajuda do administrador.</p><label>Senha atual<input name="current_password" type="password" required /></label><label>Nova chave<input name="new_recovery_key" minLength={6} required /></label><button className="secondary-button">Salvar chave</button></form>
       <article className="panel"><h3>Perfil</h3><dl><dt>Nome</dt><dd>{user.display_name}</dd><dt>Usuário</dt><dd>{user.username}</dd><dt>E-mail</dt><dd>{user.email}</dd><dt>Permissão</dt><dd>{user.role === 'admin' ? 'Administrador' : 'Usuário'}</dd></dl></article>
       <article className="panel category-panel"><h3>Categorias</h3><form ref={categoryFormRef} className="category-form" onSubmit={createCategory}><input name="name" placeholder="Nova categoria" required /><select name="kind"><option value="expense">Despesa</option><option value="income">Renda</option></select><button className="secondary-button">Adicionar</button></form><div className="category-list">{categories.map((item) => <button key={item.id} className={item.is_active ? '' : 'inactive'} onClick={() => toggleCategory(item)}><span>{item.name}</span><small>{item.kind === 'expense' ? 'Despesa' : 'Renda'} • {item.is_active ? 'Ativa' : 'Oculta'}</small></button>)}</div></article>
-      {user.role === 'admin' && <article className="panel backup-panel"><h3>Backup diário</h3><p>O sistema cria automaticamente um backup por dia e mantém os últimos 30 arquivos.</p><button className="secondary-button" onClick={createBackup}>Fazer backup agora</button><div className="backup-list">{backups.slice(0, 5).map((item) => <div key={item.name}><span>{item.name}</span><small>{Math.round(item.size / 1024)} KB</small></div>)}</div></article>}
-      <article className="panel"><h3>Acesso local</h3><p>No computador: <code>http://localhost:8000</code></p><p>Na rede: <code>http://smartfinance.local:8000</code> ou pelo endereço IP.</p></article>
+      {user.role === 'admin' && <article className="panel backup-panel"><h3>Backup e banco de dados</h3><p>O sistema cria automaticamente um backup diário. A exportação baixa o banco SQLite pela pasta de downloads do navegador.</p><div className="settings-button-row"><button className="secondary-button" onClick={createBackup}>Fazer backup agora</button><button className="primary-button" onClick={exportDatabase}>Exportar banco de dados</button></div><div className="backup-list">{backups.slice(0, 5).map((item) => <div key={item.name}><span>{item.name}</span><small>{Math.round(item.size / 1024)} KB</small></div>)}</div></article>}
+      <article className="panel developer-panel"><h3>Sobre o aplicativo</h3><p>Aplicativo desenvolvido por Luan Claiver 2026</p><a className="secondary-button github-project-button" href="https://github.com/LuanClaiver/smart-finance" target="_blank" rel="noreferrer">Abrir projeto no GitHub</a></article>
     </section>
     {message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}
   </>

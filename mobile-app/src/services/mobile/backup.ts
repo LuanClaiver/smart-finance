@@ -1,12 +1,21 @@
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Preferences } from '@capacitor/preferences'
 import { Share } from '@capacitor/share'
-import { queryRows } from './db'
+import { closeDb, DATABASE_NAME, getDb, queryRows } from './db'
 
 const TABLES = ['users', 'categories', 'accounts', 'cards', 'incomes', 'recurring_expenses', 'expenses', 'loans', 'loan_installments']
 const HISTORY_KEY = 'smart-finance-mobile-backups'
 
 type BackupInfo = { name: string; size: number; created_at: string; uri?: string }
+
+type DownloadResult = { name: string; uri: string; location: string }
+
+type SmartFinanceDownloadsPlugin = {
+  saveFile(options: { sourceUri: string; filename: string; mimeType: string }): Promise<DownloadResult>
+}
+
+const SmartFinanceDownloads = registerPlugin<SmartFinanceDownloadsPlugin>('SmartFinanceDownloads')
 
 export async function listMobileBackups(): Promise<BackupInfo[]> {
   const result = await Preferences.get({ key: HISTORY_KEY })
@@ -35,4 +44,30 @@ export async function ensureDailyBackup(): Promise<void> {
   if (last.value === today) return
   await createMobileBackup(false)
   await Preferences.set({ key: 'smart-finance-mobile-last-daily-backup', value: today })
+}
+
+function browserDownloadDatabase(): never {
+  throw new Error('A exportação nativa está disponível somente no aplicativo Android.')
+}
+
+export async function exportMobileDatabase(): Promise<{ message: string; name: string }> {
+  if (!Capacitor.isNativePlatform()) browserDownloadDatabase()
+
+  const database = await getDb()
+  const location = await database.getUrl()
+  const createdAt = new Date().toISOString()
+  const filename = `smart-finance-${createdAt.slice(0, 10)}-${createdAt.slice(11, 19).replace(/:/g, '-')}.db`
+
+  // Fechar a conexão força o SQLite a concluir as gravações pendentes antes da cópia.
+  await closeDb()
+  try {
+    const result = await SmartFinanceDownloads.saveFile({
+      sourceUri: location.url,
+      filename,
+      mimeType: 'application/vnd.sqlite3',
+    })
+    return { message: `Banco baixado em ${result.location || 'Downloads'}`, name: result.name || filename }
+  } finally {
+    await getDb()
+  }
 }

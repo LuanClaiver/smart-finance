@@ -318,6 +318,24 @@ async function updateLoan(owner: number, id: number, payload: Record<string, unk
   return (await normalizeLoanRows([await owned('loans', id, owner)]))[0]
 }
 
+async function readAttachment(owner: number, id: number): Promise<Blob> {
+  const item = await owned('expenses', id, owner)
+  const path = String(item.attachment_path || '')
+  if (!path) throw new MobileApiError('Esta despesa não possui comprovante.', 404)
+  const { Directory, Filesystem } = await import('@capacitor/filesystem')
+  const result = await Filesystem.readFile({ path, directory: Directory.Data })
+  const base64 = typeof result.data === 'string' ? result.data : ''
+  if (!base64) throw new MobileApiError('Não foi possível ler o comprovante.', 404)
+  const extension = path.split('.').pop()?.toLowerCase() || ''
+  const mimeTypes: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf',
+  }
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new Blob([bytes], { type: mimeTypes[extension] || 'application/octet-stream' })
+}
+
 async function uploadAttachment(owner: number, id: number, options: RequestInit): Promise<{ message: string; path: string }> {
   const item = await owned('expenses', id, owner)
   if (!(options.body instanceof FormData)) throw new MobileApiError('Arquivo não informado.')
@@ -460,6 +478,7 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
   if (url.pathname === '/recurring-expenses' && method === 'POST') return await createRecurrence(owner, payload) as T
   if (parts[0] === 'expenses' && parts[1]) {
     const id = Number(parts[1])
+    if (parts[2] === 'attachment' && method === 'GET') return await readAttachment(owner, id) as T
     if (parts[2] === 'attachment' && method === 'POST') return await uploadAttachment(owner, id, options) as T
     if (method === 'PATCH') return await updateExpense(owner, id, payload) as T
     if (method === 'DELETE') { await owned('expenses', id, owner); await execute('DELETE FROM expenses WHERE id=? AND owner_id=?', [id, owner]); return { message: 'Despesa excluída' } as T }
