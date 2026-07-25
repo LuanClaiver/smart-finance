@@ -1,0 +1,340 @@
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import EmptyState from '../components/EmptyState'
+import ModalCard from '../components/ModalCard'
+import PageHeader from '../components/PageHeader'
+import { api, currentMonth, jsonBody, money, today } from '../services/api'
+import { confirmAction } from '../services/confirm'
+import { readNavigationTarget, scrollToTarget } from '../services/navigation'
+import { toast } from '../services/toast'
+import type { Account, Card, Category, Expense } from '../types'
+
+function payloadFromExpense(item: Expense, changes: Partial<Expense> = {}) {
+  const value = { ...item, ...changes }
+  return {
+    description: value.description,
+    amount: Number(value.amount),
+    purchase_date: value.purchase_date,
+    due_date: value.due_date,
+    paid_date: value.status === 'paid' ? value.paid_date || value.due_date : null,
+    category_id: value.category_id ?? null,
+    expense_type: value.expense_type || 'variable',
+    payment_method: value.payment_method || 'pix',
+    merchant: value.merchant || '',
+    notes: value.notes || '',
+    status: value.status,
+    account_id: value.account_id ?? null,
+    card_id: value.card_id ?? null,
+    installments: 1,
+    list_month: value.list_month || value.billing_month,
+  }
+}
+
+
+function expenseDescription(item: Expense): string {
+  if (!item.card_id) return item.description
+  return item.description
+    .replace(/^Fatura\s+do\s+(?=Cart[aã]o\b)/i, '')
+    .replace(/^Fatura\s+(?=Cart[aã]o\b)/i, '')
+    .trim()
+}
+
+function monthLabel(value: string): string {
+  const [year, month] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1))
+}
+
+function mergeExpenses(current: Expense[], incoming: Expense[]): Expense[] {
+  const incomingIds = new Set(incoming.map((item) => item.id))
+  return [...incoming, ...current.filter((item) => !incomingIds.has(item.id))]
+}
+
+function expenseDeadlineClass(item: Expense): string {
+  if (item.status === 'paid') return 'expense-deadline-paid'
+  if (!item.due_date) return ''
+  const [year, month, day] = item.due_date.split('-').map(Number)
+  const due = new Date(year, month - 1, day)
+  const now = new Date()
+  const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const difference = Math.round((due.getTime() - todayLocal.getTime()) / 86_400_000)
+  if (difference < 0) return 'expense-deadline-overdue'
+  if (difference <= 7) return 'expense-deadline-soon'
+  return ''
+}
+
+function expenseDeadlineTitle(item: Expense): string {
+  const state = expenseDeadlineClass(item)
+  if (state === 'expense-deadline-paid') return 'Despesa paga'
+  if (state === 'expense-deadline-overdue') return 'Despesa vencida'
+  if (state === 'expense-deadline-soon') return 'Vencimento próximo'
+  return ''
+}
+
+export default function ExpensesPage() {
+  const route = readNavigationTarget('expenses')
+  const targetId = route.itemId
+  const [month, setMonth] = useState(route.month || currentMonth())
+  const [items, setItems] = useState<Expense[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [cards, setCards] = useState<Card[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const [fixed, setFixed] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('pix')
+  const [expenseStatus, setExpenseStatus] = useState('pending')
+  const [paidDate, setPaidDate] = useState('')
+  const [editing, setEditing] = useState<Expense | null>(null)
+  const [error, setError] = useState('')
+  const [loadingItems, setLoadingItems] = useState(false)
+  const requestVersion = useRef(0)
+
+  const loadExpenses = useCallback(async (selectedMonth: string) => {
+    const request = ++requestVersion.current
+    setLoadingItems(true)
+    try {
+      // O marcador refresh e cache=no-store impedem que o navegador reutilize uma
+      // resposta anterior. O contador evita que uma requisição lenta de outro mês
+      // sobrescreva a lista mais recente.
+      const data = await api<Expense[]>(`/expenses?month=${encodeURIComponent(selectedMonth)}&refresh=${Date.now()}`, { cache: 'no-store' })
+      if (request === requestVersion.current) {
+        setItems(data)
+        setError('')
+      }
+    } catch (err) {
+      if (request === requestVersion.current) {
+        const message = err instanceof Error ? err.message : 'Erro ao carregar despesas'
+        setError(message)
+        toast.error('Não foi possível atualizar as despesas', message)
+      }
+    } finally {
+      if (request === requestVersion.current) setLoadingItems(false)
+    }
+  }, [])
+
+  const loadLookups = useCallback(async () => {
+    const results = await Promise.allSettled([
+      api<Account[]>('/accounts', { cache: 'no-store' }),
+      api<Card[]>('/cards', { cache: 'no-store' }),
+      api<Category[]>('/categories?kind=expense', { cache: 'no-store' }),
+    ])
+    if (results[0].status === 'fulfilled') setAccounts(results[0].value)
+    if (results[1].status === 'fulfilled') setCards(results[1].value)
+    if (results[2].status === 'fulfilled') setCategories(results[2].value)
+    const failure = results.find((result) => result.status === 'rejected')
+    if (failure?.status === 'rejected') setError(failure.reason instanceof Error ? failure.reason.message : 'Erro ao carregar opções do formulário')
+  }, [])
+
+
+  useEffect(() => {
+    setItems([])
+    void loadExpenses(month)
+  }, [month, loadExpenses])
+
+  useEffect(() => { void loadLookups() }, [loadLookups])
+
+  useEffect(() => {
+    if (fixed && paymentMethod === 'credit_card') setPaymentMethod('pix')
+  }, [fixed, paymentMethod])
+
+  useEffect(() => {
+    const refresh = () => void loadExpenses(month)
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [month, loadExpenses])
+
+  useEffect(() => {
+    if (targetId && items.some((item) => item.id === targetId)) scrollToTarget(`[data-expense-id="${targetId}"]`)
+  }, [items, targetId])
+
+  function openNew() {
+    setEditing(null)
+    setFixed(false)
+    setPaymentMethod('pix')
+    setExpenseStatus('pending')
+    setPaidDate('')
+    setError('')
+    setShowForm(true)
+  }
+
+  function openEdit(item: Expense) {
+    setEditing(item)
+    setFixed(false)
+    setPaymentMethod(item.card_id ? 'credit_card' : item.payment_method || 'pix')
+    setExpenseStatus(item.status || 'pending')
+    setPaidDate(item.paid_date || '')
+    setError('')
+    setShowForm(true)
+    window.requestAnimationFrame(() => document.getElementById('expense-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditing(null)
+    setFixed(false)
+    setExpenseStatus('pending')
+    setPaidDate('')
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const usesCard = paymentMethod === 'credit_card'
+    const purchaseDate = usesCard
+      ? String(form.get('purchase_date') || editing?.purchase_date || today())
+      : String(editing?.purchase_date || today())
+    const dueDate = usesCard || Boolean(editing)
+      ? String(form.get('due_date') || editing?.due_date || today())
+      : String(paidDate || today())
+    const normalizedStatus = paidDate ? 'paid' : expenseStatus
+    const normalizedPaidDate = normalizedStatus === 'paid' ? (paidDate || today()) : null
+    try {
+      setError('')
+      if (editing) {
+        const cardId = usesCard && form.get('card_id') ? Number(form.get('card_id')) : null
+        const updated = await api<Expense>(`/expenses/${editing.id}`, { method: 'PATCH', ...jsonBody({
+          description: form.get('description'), amount: Number(form.get('amount')), purchase_date: purchaseDate,
+          due_date: dueDate, paid_date: normalizedPaidDate,
+          category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: editing.expense_type || 'variable',
+          payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
+          status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
+          card_id: cardId, installments: 1, list_month: editing.list_month || month,
+        }) })
+        setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
+        closeForm()
+        await loadExpenses(month)
+        toast.success('Despesa atualizada', `${updated.description} foi atualizada e permanece na lista de ${month}.`)
+      } else if (fixed) {
+        const result = await api<{ generated: number }>('/recurring-expenses', { method: 'POST', ...jsonBody({
+          description: form.get('description'), amount: Number(form.get('amount')), due_day: Number(form.get('due_day')),
+          category_id: form.get('category_id') ? Number(form.get('category_id')) : null, payment_method: paymentMethod,
+          merchant: form.get('merchant') || '', account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
+          start_month: month, end_month: form.get('end_month') || null, months_to_generate: Number(form.get('months_to_generate') || 12),
+        }) })
+        closeForm()
+        await loadExpenses(month)
+        toast.success('Gasto fixo criado', `${result.generated || 0} lançamento(s) mensal(is) foram gerados.`)
+      } else {
+        const cardId = usesCard && form.get('card_id') ? Number(form.get('card_id')) : null
+        const created = await api<Expense[]>('/expenses', { method: 'POST', ...jsonBody({
+          description: form.get('description'), amount: Number(form.get('amount')), purchase_date: purchaseDate,
+          due_date: dueDate, paid_date: normalizedPaidDate,
+          category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: 'variable',
+          payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
+          status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
+          card_id: cardId, installments: Number(form.get('installments') || 1), list_month: month,
+        }) })
+        const visibleNow = created.filter((item) => item.list_month === month)
+        setItems((current) => mergeExpenses(current, visibleNow))
+        closeForm()
+        await loadExpenses(month)
+        const first = created[0]
+        const invoiceMessage = first?.card_id && first.billing_month !== month
+          ? ` A cobrança do cartão ficou na fatura ${first.billing_month}.`
+          : ''
+        toast.success('Despesa salva', `${created.length} lançamento(s) adicionado(s). O primeiro já está na lista de ${month}.${invoiceMessage}`)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao salvar'
+      setError(message)
+      toast.error('Não foi possível salvar a despesa', message)
+    }
+  }
+
+  async function markPaid(item: Expense) {
+    try {
+      setError('')
+      const updated = await api<Expense>(`/expenses/${item.id}`, { method: 'PATCH', ...jsonBody(payloadFromExpense(item, { status: 'paid', paid_date: today() })) })
+      setItems((current) => current.map((expense) => expense.id === updated.id ? updated : expense))
+      await loadExpenses(month)
+      toast.success('Pagamento registrado', `${item.description} foi marcada como paga.`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao registrar pagamento'
+      setError(message)
+      toast.error('Pagamento não registrado', message)
+    }
+  }
+
+  async function remove(id: number) {
+    const item = items.find((expense) => expense.id === id)
+    const confirmed = await confirmAction({
+      title: 'Excluir despesa?',
+      message: item ? `${item.description} será removida da lista.` : 'Esta despesa será removida da lista.',
+      detail: 'O comprovante vinculado e os dados deste lançamento também deixarão de aparecer no sistema.',
+      confirmLabel: 'Excluir despesa',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      await api(`/expenses/${id}`, { method: 'DELETE' })
+      setItems((current) => current.filter((expense) => expense.id !== id))
+      await loadExpenses(month)
+      toast.success('Despesa excluída', 'O lançamento foi removido da lista.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao excluir'
+      setError(message)
+      toast.error('Não foi possível excluir', message)
+    }
+  }
+
+  async function uploadAttachment(id: number, file?: File) {
+    if (!file) return
+    const body = new FormData()
+    body.append('file', file)
+    try {
+      await api(`/expenses/${id}/attachment`, { method: 'POST', body })
+      await loadExpenses(month)
+      toast.success('Comprovante anexado', file.name)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao anexar comprovante'
+      setError(message)
+      toast.error('Não foi possível anexar', message)
+    }
+  }
+
+  return <>
+    <PageHeader title="Despesas" subtitle="Gastos fixos, variáveis, cartões e parcelamentos" actions={<><input className="month-input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /><button className="primary-button compact" onClick={openNew}>+ Nova despesa</button></>} />
+    {showForm && <ModalCard onClose={closeForm} label={editing ? `Editar despesa ${editing.description}` : 'Nova despesa'} wide><form id="expense-form" key={editing?.id || 'new-expense'} className="panel form-grid modal-form" onSubmit={submit}>
+      <h3 className="form-title wide">{editing ? 'Editar despesa ou pagamento' : 'Nova despesa'}</h3>
+      {!editing && <label className="toggle-line wide"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Criar como gasto fixo mensal</label>}
+      <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || ''} /></label>
+      <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={editing ? Number(editing.amount) : ''} /></label>
+      <label>Categoria<select name="category_id" defaultValue={editing?.category_id || ''}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Estabelecimento<input name="merchant" defaultValue={editing?.merchant || ''} /></label>
+      <label>Forma de pagamento<select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option>{!fixed && <option value="credit_card">Cartão de crédito</option>}</select></label>
+      <label>Conta<select name="account_id" defaultValue={editing?.account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      {!fixed ? <>
+        {(Boolean(editing) || paymentMethod === 'credit_card') && <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || `${month}-10`} required /></label>}
+        {paymentMethod === 'credit_card' && <>
+          <label>Data da compra<input name="purchase_date" type="date" defaultValue={editing?.purchase_date || today()} required /></label>
+          <label>Cartão<select name="card_id" defaultValue={editing?.card_id || ''} required><option value="">Selecione o cartão</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>Parcelas<input name="installments" type="number" min="1" max="360" defaultValue="1" disabled={Boolean(editing)} />{editing?.total_installments && <small>Esta edição altera somente a parcela {editing.installment_number}/{editing.total_installments}.</small>}</label>
+        </>}
+        <label>Situação<select name="status" value={expenseStatus} onChange={(event) => {
+          const nextStatus = event.target.value
+          setExpenseStatus(nextStatus)
+          if (nextStatus === 'pending') setPaidDate('')
+          if (nextStatus === 'paid' && !paidDate) setPaidDate(today())
+        }}><option value="pending">Pendente</option><option value="paid">Paga</option></select></label>
+        <label>Data do pagamento<input name="paid_date" type="date" value={paidDate} onChange={(event) => {
+          const nextDate = event.target.value
+          setPaidDate(nextDate)
+          if (nextDate) setExpenseStatus('paid')
+        }} /><small>{paidDate ? 'Ao informar uma data, a despesa será marcada como paga.' : 'Preencha para registrar o pagamento.'}</small></label>
+        <label className="wide">Observações<textarea name="notes" rows={2} defaultValue={editing?.notes || ''} /></label>
+      </> : <>
+        <label>Dia do vencimento<input name="due_day" type="number" min="1" max="31" defaultValue="10" required /></label>
+        <label>Gerar próximos meses<input name="months_to_generate" type="number" min="1" max="120" defaultValue="12" /></label>
+        <label>Mês final opcional<input name="end_month" type="month" /></label>
+      </>}
+      <div className="form-actions"><button className="primary-button">{editing ? 'Salvar alterações' : 'Salvar'}</button><button type="button" className="secondary-button" onClick={closeForm}>Cancelar</button></div>
+    </form></ModalCard>}
+    {error && <div className="form-error">{error}</div>}
+    {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
+    <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>
+    <section className="table-panel"><table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Tipo</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>{items.map((item) => <tr key={item.id} data-expense-id={item.id} tabIndex={-1} title={expenseDeadlineTitle(item)} className={[targetId === item.id ? 'target-row' : '', expenseDeadlineClass(item)].filter(Boolean).join(' ')}><td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}</div></td><td>{item.due_date}</td><td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td><td>{money(Number(item.amount))}</td><td><span className={`status ${item.status}`}>{item.status === 'paid' ? 'Paga' : 'Pendente'}</span></td><td className="row-actions">{item.status !== 'paid' && <button onClick={() => markPaid(item)}>Pagar</button>}<button onClick={() => openEdit(item)}>Editar</button><label className="attachment-button">{item.attachment_path ? 'Trocar comprovante' : 'Anexar'}<input type="file" accept="image/*,.pdf" onChange={(event) => uploadAttachment(item.id, event.target.files?.[0])} /></label><button className="danger-text" onClick={() => remove(item.id)}>Excluir</button></td></tr>)}</tbody></table>{items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}</section>
+  </>
+}

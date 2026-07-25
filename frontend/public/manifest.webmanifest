@@ -1,0 +1,9 @@
+{
+  "name": "Smart Finance",
+  "short_name": "Smart Finance",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07130d",
+  "theme_color": "#16a34a",
+  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml"}]
+}

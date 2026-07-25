@@ -1,0 +1,19 @@
+SMART FINANCE - MOVER PARA OUTRO COMPUTADOR
+
+1. No computador antigo, feche completamente o Smart Finance.
+2. Copie o projeto completo.
+3. Confirme que levou estes dados:
+   - backend\data\smart_finance.db
+   - backend\storage\  (comprovantes)
+4. No computador novo, instale Python 3.11 ou superior pelo instalador oficial.
+5. Durante a instalação do Python, marque Add Python to PATH.
+6. Extraia ou copie o projeto para uma pasta comum, por exemplo C:\Smart-Finance.
+7. Execute Iniciar Smart Finance.bat.
+8. Na primeira abertura, tenha internet disponível para instalar as dependências Python.
+9. Autorize o Python no Firewall para redes privadas se o Windows perguntar.
+10. Para acesso por outro dispositivo, use http://IP-DO-COMPUTADOR:8000.
+
+Node.js não é necessário para o uso normal porque frontend\dist já contém a interface compilada.
+Node.js só é necessário para alterar o frontend e executar npm run build.
+
+Não copie backend\.venv nem frontend\node_modules entre computadores. Essas pastas são recriadas.

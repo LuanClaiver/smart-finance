@@ -1,0 +1,145 @@
+name: 02 - Gerar APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/**'
+      - 'scripts/mobile/**'
+      - '.github/workflows/02-gerar-apk-android.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gerar-apk:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Baixar código do repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Validar configuração
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $missing = @()
+          if ([string]::IsNullOrWhiteSpace($env:GOOGLE_WEB_CLIENT_ID)) { $missing += 'GOOGLE_WEB_CLIENT_ID (Repository variable)' }
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_BASE64)) { $missing += 'ANDROID_KEYSTORE_BASE64' }
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_PASSWORD)) { $missing += 'ANDROID_KEYSTORE_PASSWORD' }
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS)) { $missing += 'ANDROID_KEY_ALIAS' }
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEY_PASSWORD)) { $missing += 'ANDROID_KEY_PASSWORD' }
+          if ($missing.Count -gt 0) {
+            throw "Configuração ausente: $($missing -join ', ')"
+          }
+          if (-not $env:GOOGLE_WEB_CLIENT_ID.EndsWith('.apps.googleusercontent.com')) {
+            throw 'GOOGLE_WEB_CLIENT_ID não parece ser um ID OAuth Web válido.'
+          }
+
+      - name: Instalar dependências do aplicativo
+        working-directory: mobile-app
+        run: npm ci --no-audit --no-fund
+
+      - name: Configurar login Google
+        working-directory: mobile-app
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          "VITE_GOOGLE_WEB_CLIENT_ID=$env:GOOGLE_WEB_CLIENT_ID" | Set-Content -Path .env.local -Encoding utf8
+
+      - name: Compilar interface
+        working-directory: mobile-app
+        run: npm run build
+
+      - name: Criar e sincronizar projeto Android
+        working-directory: mobile-app
+        run: |
+          if (-not (Test-Path 'android\gradlew.bat')) {
+            npx cap add android
+          }
+          npx cap sync android
+
+      - name: Aplicar ajustes Android
+        run: |
+          ./scripts/mobile/Aplicar-Ajustes-Android.ps1 "$pwd\mobile-app\android"
+
+      - name: Restaurar chave de assinatura
+        working-directory: mobile-app/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          $bytes = [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
+          [IO.File]::WriteAllBytes("$pwd\smart-finance-release.jks", $bytes)
+
+      - name: Configurar assinatura de release
+        working-directory: mobile-app/android/app
+        run: |
+          @'
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("ANDROID_KEYSTORE_FILE"))
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          '@ | Set-Content -Path signing.gradle -Encoding utf8
+
+          $gradle = Get-Content build.gradle -Raw
+          if ($gradle -notmatch "apply from: 'signing.gradle'") {
+            Add-Content -Path build.gradle -Value "`napply from: 'signing.gradle'`n"
+          }
+
+      - name: Gerar APK assinado
+        working-directory: mobile-app/android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}\mobile-app\android\smart-finance-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: .\gradlew.bat assembleRelease --stacktrace
+
+      - name: Preparar APK para download
+        run: |
+          New-Item -ItemType Directory -Path APK -Force | Out-Null
+          Copy-Item 'mobile-app\android\app\build\outputs\apk\release\app-release.apk' 'APK\Smart-Finance.apk'
+          $hash = (Get-FileHash 'APK\Smart-Finance.apk' -Algorithm SHA256).Hash
+          "SHA256: $hash" | Set-Content 'APK\Smart-Finance-SHA256.txt'
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smart-Finance-APK
+          path: APK/
+          retention-days: 30
