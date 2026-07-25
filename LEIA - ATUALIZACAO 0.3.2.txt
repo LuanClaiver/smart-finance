@@ -1,0 +1,11 @@
+SMART FINANCE 0.3.2 - APK SEM LOGIN GOOGLE
+
+1. Extraia TODO o conteudo deste ZIP dentro da pasta original Smart-Finance.
+2. Quando o Windows perguntar, escolha substituir os arquivos existentes.
+3. Execute: APLICAR E ENVIAR AO GITHUB.bat
+4. No GitHub, abra Acoes e acompanhe 02 - Gerar APK Android.
+5. Quando concluir, baixe o artefato Smart-Finance-APK.
+
+Nao e necessario criar Google Cloud nem GOOGLE_WEB_CLIENT_ID.
+O APK usa usuario/e-mail e senha.
+Conta inicial: Admin / 1234.

@@ -1,132 +1,44 @@
-# Smart Finance no GitHub Actions
+# Smart Finance no GitHub Actions — APK sem Google
 
-Este projeto pode gerar o APK na nuvem, sem Android Studio e sem Android SDK no computador.
+Este projeto gera o APK na nuvem, sem Android Studio e sem Android SDK no computador.
 
-## 1. Criar o repositório
+## 1. Segredos necessários
 
-Crie no GitHub um repositório **privado**, vazio e chamado, por exemplo, `smart-finance`.
-Não marque README, `.gitignore` ou licença durante a criação.
+Em `Configurações > Segredos e variáveis > Ações > Segredos`, mantenha:
 
-## 2. Enviar o projeto
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+- `ANDROID_KEYSTORE_BASE64`
 
-Instale apenas o Git for Windows e execute:
+Não é necessário criar projeto no Google Cloud nem a variável `GOOGLE_WEB_CLIENT_ID`.
 
-```text
-Enviar para GitHub.bat
-```
-
-Cole a URL HTTPS do repositório vazio, por exemplo:
-
-```text
-https://github.com/SEU_USUARIO/smart-finance.git
-```
-
-## 3. Criar as senhas da assinatura
-
-No repositório, abra:
-
-```text
-Settings > Secrets and variables > Actions > Secrets
-```
-
-Crie:
-
-- `ANDROID_KEYSTORE_PASSWORD`: uma senha forte para o arquivo de assinatura;
-- `ANDROID_KEY_ALIAS`: use `smartfinance`;
-- `ANDROID_KEY_PASSWORD`: outra senha forte ou a mesma senha do keystore.
-
-Guarde essas senhas fora do GitHub.
-
-## 4. Gerar a chave Android
+## 2. Gerar o APK
 
 Abra:
 
-```text
-Actions > 01 - Gerar chave Android > Run workflow
-```
+`Ações > 02 - Gerar APK Android > Executar fluxo de trabalho`
 
-Ao terminar:
+Ao terminar, baixe o artefato `Smart-Finance-APK`. Dentro estarão:
 
-1. abra a execução;
-2. baixe o artefato `chave-smart-finance`;
-3. guarde `smart-finance-release.jks` em local seguro;
-4. abra `keystore-base64.txt` e copie todo o conteúdo;
-5. crie o segredo `ANDROID_KEYSTORE_BASE64` com esse conteúdo;
-6. abra `informacoes-chave.txt` e copie o SHA-1;
-7. depois de guardar tudo, apague a execução/artefato da chave no GitHub.
+- `Smart-Finance.apk`
+- `Smart-Finance-SHA256.txt`
 
-## 5. Configurar o Google Cloud
+## 3. Acesso inicial
 
-No Google Cloud, use:
+- Usuário: `Admin`
+- Senha: `1234`
 
-```text
-Pacote Android: com.smartfinance.app
-SHA-1: valor de informacoes-chave.txt
-```
+O aplicativo funciona localmente no celular, sem computador e sem internet.
 
-Crie uma credencial OAuth do tipo Android e outra do tipo Aplicativo da Web.
-Copie o ID do cliente Web, que termina em:
+## 4. Atualizações
 
-```text
-.apps.googleusercontent.com
-```
-
-No GitHub, abra:
-
-```text
-Settings > Secrets and variables > Actions > Variables
-```
-
-Crie a variável:
-
-```text
-GOOGLE_WEB_CLIENT_ID
-```
-
-com o ID do cliente Web.
-
-O ID de cliente é público no aplicativo; não use nem envie um client secret.
-
-## 6. Gerar o APK
-
-Abra:
-
-```text
-Actions > 02 - Gerar APK Android > Run workflow
-```
-
-Ao terminar, baixe o artefato:
-
-```text
-Smart-Finance-APK
-```
-
-Ele contém:
-
-```text
-Smart-Finance.apk
-Smart-Finance-SHA256.txt
-```
-
-Transfira o APK ao celular e permita a instalação da origem usada para abrir o arquivo.
-
-## 7. Atualizações futuras
-
-Altere o projeto e execute:
-
-```text
-Atualizar GitHub.bat
-```
-
-Quando algum arquivo de `mobile-app` mudar, o workflow do APK será iniciado automaticamente. Também é possível executá-lo manualmente pela guia Actions.
+Após alterar arquivos, execute `Atualizar GitHub.bat`. Mudanças em `mobile-app` iniciam uma nova compilação automaticamente.
 
 ## Nunca envie ao GitHub
 
-- `smart_finance.db`;
-- comprovantes pessoais;
-- `.env.local`;
-- arquivos `.jks` ou `.keystore`;
-- senhas;
-- conteúdo do `keystore-base64.txt`.
-
-O `.gitignore` do projeto já bloqueia esses itens, mas confira sempre antes do primeiro envio.
+- `smart_finance.db`
+- comprovantes pessoais
+- arquivos `.jks` ou `.keystore`
+- senhas
+- conteúdo do `keystore-base64.txt`

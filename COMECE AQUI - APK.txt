@@ -1,46 +1,22 @@
-SMART FINANCE MOBILE 0.3.0
-===========================
+SMART FINANCE 0.3.2 - APK PELO GITHUB
 
-O projeto agora possui duas versões independentes:
+O aplicativo Android usa login local por usuário/e-mail e senha.
+Não é necessário Google Cloud.
 
-1. Smart Finance para Windows/rede local
-   - Pasta: backend + frontend
-   - Inicia por: Iniciar Smart Finance.bat
-   - Banco: backend\data\smart_finance.db
-
-2. Smart Finance para Android
-   - Pasta: mobile-app
-   - Banco SQLite fica dentro do celular
-   - Funciona sem computador e sem internet
-   - O login Google precisa de internet quando for utilizado
-
-PRIMEIRA PREPARAÇÃO DO APK
--------------------------
-
-1. Instale o Node.js 22 ou superior.
-2. Instale o Android Studio.
-3. Abra o Android Studio uma vez e instale o Android SDK solicitado.
-4. Execute: Preparar APK.bat
-5. Execute: Ver SHA-1 Google.bat
-6. Configure o Google Cloud conforme docs\APK_E_GOOGLE_LOGIN.md
-7. Execute: Configurar Google Login.bat
-8. Execute: Gerar APK Debug.bat
-
-O APK será criado em:
-
-APK\Smart-Finance-debug.apk
-
-LOGIN LOCAL INICIAL DO APK
---------------------------
-
+CONTA INICIAL
 Usuário: Admin
 Senha: 1234
 
-Altere a senha depois do primeiro acesso.
+PARA GERAR O APK
+1. Confirme no GitHub estes quatro segredos:
+   ANDROID_KEYSTORE_PASSWORD
+   ANDROID_KEY_ALIAS
+   ANDROID_KEY_PASSWORD
+   ANDROID_KEYSTORE_BASE64
+2. Abra a guia Ações.
+3. Escolha 02 - Gerar APK Android.
+4. Clique em Executar fluxo de trabalho.
+5. Quando concluir, baixe o artefato Smart-Finance-APK.
+6. Extraia e instale Smart-Finance.apk no celular.
 
-IMPORTANTE SOBRE OS DADOS
--------------------------
-
-O banco do APK é separado do banco do computador.
-Usar a mesma Conta Google não sincroniza os lançamentos.
-A sincronização poderá ser adicionada em uma versão futura.
+O APK funciona sem computador e sem internet.

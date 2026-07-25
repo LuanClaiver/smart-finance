@@ -29,8 +29,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: mobile-app/package-lock.json
 
       - name: Preparar Java
         uses: actions/setup-java@v4
@@ -41,14 +39,12 @@ jobs:
 
       - name: Validar configuração
         env:
-          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           $missing = @()
-          if ([string]::IsNullOrWhiteSpace($env:GOOGLE_WEB_CLIENT_ID)) { $missing += 'GOOGLE_WEB_CLIENT_ID (Repository variable)' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_BASE64)) { $missing += 'ANDROID_KEYSTORE_BASE64' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_PASSWORD)) { $missing += 'ANDROID_KEYSTORE_PASSWORD' }
           if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS)) { $missing += 'ANDROID_KEY_ALIAS' }
@@ -56,20 +52,10 @@ jobs:
           if ($missing.Count -gt 0) {
             throw "Configuração ausente: $($missing -join ', ')"
           }
-          if (-not $env:GOOGLE_WEB_CLIENT_ID.EndsWith('.apps.googleusercontent.com')) {
-            throw 'GOOGLE_WEB_CLIENT_ID não parece ser um ID OAuth Web válido.'
-          }
 
       - name: Instalar dependências do aplicativo
         working-directory: mobile-app
-        run: npm ci --no-audit --no-fund
-
-      - name: Configurar login Google
-        working-directory: mobile-app
-        env:
-          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-        run: |
-          "VITE_GOOGLE_WEB_CLIENT_ID=$env:GOOGLE_WEB_CLIENT_ID" | Set-Content -Path .env.local -Encoding utf8
+        run: npm install --no-audit --no-fund
 
       - name: Compilar interface
         working-directory: mobile-app

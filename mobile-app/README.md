@@ -1,25 +1,16 @@
-# Smart Finance Mobile
+# Smart Finance Mobile 0.3.2
 
-Versão Android independente do Smart Finance, baseada em React, Capacitor e SQLite.
+Aplicativo Android local criado com React, Capacitor e SQLite.
 
-## Comandos
+## Acesso inicial
 
-```bash
-npm install
-npm run build
-npx cap add android
-npx cap sync android
-npx cap open android
-```
+- Usuário: `Admin`
+- Senha: `1234`
 
-Na raiz do projeto existem arquivos `.bat` que automatizam o processo no Windows.
+O aplicativo funciona sem computador e sem internet. O login é feito por usuário ou e-mail e senha.
 
-## Configuração
+## Compilação
 
-Copie `.env.example` para `.env.local` e preencha:
+A compilação principal é feita pelo GitHub Actions em:
 
-```env
-VITE_GOOGLE_WEB_CLIENT_ID=SEU_ID.apps.googleusercontent.com
-```
-
-Consulte `../docs/APK_E_GOOGLE_LOGIN.md`.
+`.github/workflows/02-gerar-apk-android.yml`

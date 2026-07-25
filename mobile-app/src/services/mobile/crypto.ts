@@ -39,11 +39,3 @@ export async function verifySecret(secret: string, stored?: string | null): Prom
   for (let index = 0; index < result.length; index += 1) difference |= result[index] ^ expected[index]
   return difference === 0
 }
-
-export function decodeJwtPayload<T extends Record<string, unknown>>(token: string): T {
-  const part = token.split('.')[1]
-  if (!part) throw new Error('Token Google inválido.')
-  const normalized = part.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-  return JSON.parse(decodeURIComponent(Array.from(atob(padded)).map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''))) as T
-}

@@ -1,13 +1,7 @@
 import type { User } from '../../types'
 import { execute, queryOne, queryRows, seedCategories } from './db'
-import { decodeJwtPayload, hashSecret, randomToken, verifySecret } from './crypto'
+import { hashSecret, randomToken, verifySecret } from './crypto'
 import { getDb } from './db'
-
-export type GoogleIdentity = {
-  sub: string
-  email: string
-  name: string
-}
 
 type UserRow = User & {
   password_hash?: string | null
@@ -105,50 +99,7 @@ export async function changeRecoveryKey(userId: number, payload: Record<string, 
   return { message: 'Chave de recuperação atualizada' }
 }
 
-function usernameBase(email: string): string {
-  const base = email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 60)
-  return base.length >= 3 ? base : `usuario${Date.now()}`
-}
-
-async function uniqueUsername(email: string): Promise<string> {
-  const base = usernameBase(email)
-  let candidate = base
-  let suffix = 1
-  while (await queryOne<{ id: number }>('SELECT id FROM users WHERE username = ? COLLATE NOCASE', [candidate])) {
-    suffix += 1
-    candidate = `${base}${suffix}`
-  }
-  return candidate
-}
-
-export async function loginGoogleIdentity(identity: GoogleIdentity): Promise<{ token: string; user: User }> {
-  let row = await queryOne<UserRow>('SELECT * FROM users WHERE google_sub = ? LIMIT 1', [identity.sub])
-  if (!row) {
-    row = await queryOne<UserRow>('SELECT * FROM users WHERE email = ? COLLATE NOCASE LIMIT 1', [identity.email.toLowerCase()])
-    if (row) {
-      await execute('UPDATE users SET google_sub = ?, display_name = CASE WHEN display_name = "" THEN ? ELSE display_name END WHERE id = ?', [identity.sub, identity.name, row.id])
-    } else {
-      const id = await execute(
-        `INSERT INTO users(username, display_name, email, password_hash, recovery_key_hash, google_sub, role, is_active, must_change_password, created_at)
-         VALUES (?, ?, ?, ?, NULL, ?, 'user', 1, 0, ?)`,
-        [await uniqueUsername(identity.email), identity.name || identity.email, identity.email.toLowerCase(), await hashSecret(randomToken(32)), identity.sub, new Date().toISOString()],
-      )
-      const database = await getDb()
-      await seedCategories(database, id)
-    }
-    row = await queryOne<UserRow>('SELECT * FROM users WHERE google_sub = ? LIMIT 1', [identity.sub])
-  }
-  if (!row || !row.is_active) throw new Error('Esta conta está desativada.')
-  return { token: createSession(Number(row.id)), user: publicUser(row) }
-}
-
 export async function listUsers(): Promise<User[]> {
   const rows = await queryRows<UserRow>('SELECT * FROM users ORDER BY display_name COLLATE NOCASE')
   return rows.map(publicUser)
-}
-
-export function identityFromIdToken(idToken: string): GoogleIdentity {
-  const payload = decodeJwtPayload<{ sub?: string; email?: string; name?: string; given_name?: string }>(idToken)
-  if (!payload.sub || !payload.email) throw new Error('A Conta Google não retornou os dados necessários.')
-  return { sub: payload.sub, email: payload.email, name: payload.name || payload.given_name || payload.email }
 }

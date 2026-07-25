@@ -1,7 +1,7 @@
-import { loginWithGoogle, googleIsConfigured, isNativeMobile, logoutGoogle } from './mobile/google'
+import { Capacitor } from '@capacitor/core'
 import { handleLocalApi, MobileApiError } from './mobile/localApi'
 import { scheduleNativeAlerts } from './mobile/notifications'
-import type { AlertItem, User } from '../types'
+import type { AlertItem } from '../types'
 
 let selectedOwnerId: number | null = Number(localStorage.getItem('smart-finance-owner-id')) || null
 
@@ -48,17 +48,9 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
 }
 
-export async function googleLogin(): Promise<{ token: string; user: User }> {
-  try {
-    const response = await loginWithGoogle()
-    setToken(response.token)
-    return response
-  } catch (error) {
-    throw new ApiError(error instanceof Error ? error.message : 'Falha ao entrar com Google.', 400)
-  }
+export function isNativeMobile(): boolean {
+  return Capacitor.isNativePlatform()
 }
-
-export { googleIsConfigured, isNativeMobile, logoutGoogle }
 
 export const jsonBody = (value: unknown): RequestInit => ({ body: JSON.stringify(value) })
 

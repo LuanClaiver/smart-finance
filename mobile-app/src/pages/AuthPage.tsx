@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { api, googleIsConfigured, googleLogin, isNativeMobile, jsonBody, setToken } from '../services/api'
+import { api, jsonBody, setToken } from '../services/api'
 import { toast } from '../services/toast'
 import type { User } from '../types'
 
@@ -7,7 +7,6 @@ export default function AuthPage({ onAuthenticated }: { onAuthenticated: (user: 
   const [mode, setMode] = useState<'login' | 'register' | 'recover'>('login')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,23 +38,6 @@ export default function AuthPage({ onAuthenticated }: { onAuthenticated: (user: 
     }
   }
 
-  async function enterWithGoogle() {
-    setGoogleLoading(true)
-    setError('')
-    try {
-      const response = await googleLogin()
-      onAuthenticated(response.user)
-      toast.success('Conta Google conectada', `Bem-vindo, ${response.user.display_name}.`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Falha ao entrar com Google.'
-      setError(message)
-      toast.error('Login Google não concluído', message)
-    } finally {
-      setGoogleLoading(false)
-    }
-  }
-
-  const showGoogle = mode === 'login' && isNativeMobile()
   return <div className="auth-layout">
     <section className="auth-hero">
       <div className="hero-logo">▥</div>
@@ -63,19 +45,12 @@ export default function AuthPage({ onAuthenticated }: { onAuthenticated: (user: 
       <p>Organize rendas, despesas, cartões e empréstimos no próprio celular, mesmo sem internet.</p>
       <div className="hero-feature"><b>✓</b><span>Banco SQLite privado no aparelho</span></div>
       <div className="hero-feature"><b>✓</b><span>Relatório mensal em PDF</span></div>
-      <div className="hero-feature"><b>✓</b><span>Login local ou Conta Google</span></div>
+      <div className="hero-feature"><b>✓</b><span>Login local protegido por usuário e senha</span></div>
     </section>
     <section className="auth-panel">
       <div className="auth-card">
         <h2>{mode === 'login' ? 'Entrar' : mode === 'register' ? 'Criar conta' : 'Recuperar senha'}</h2>
-        <p>{mode === 'login' ? 'Use sua conta local ou continue com o Google.' : mode === 'register' ? 'Crie sua conta local neste celular.' : 'Use a chave de recuperação criada no cadastro.'}</p>
-        {showGoogle && <>
-          <button type="button" className="google-login-button" onClick={enterWithGoogle} disabled={googleLoading || !googleIsConfigured()}>
-            <span className="google-mark">G</span>{googleLoading ? 'Abrindo Google...' : 'Continuar com Google'}
-          </button>
-          {!googleIsConfigured() && <small className="google-config-warning">O ID do Google ainda precisa ser configurado antes de gerar o APK.</small>}
-          <div className="auth-divider"><span>ou</span></div>
-        </>}
+        <p>{mode === 'login' ? 'Entre com seu usuário ou e-mail e senha.' : mode === 'register' ? 'Crie sua conta local neste celular.' : 'Use a chave de recuperação criada no cadastro.'}</p>
         <form onSubmit={submit}>
           {mode === 'register' && <>
             <label>Nome de usuário<input name="username" minLength={3} required /></label>

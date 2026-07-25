@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Shell from './components/Shell'
-import { api, logoutGoogle, setSelectedOwnerId, setToken } from './services/api'
+import { api, setSelectedOwnerId, setToken } from './services/api'
 import { navigateTo, readNavigationTarget } from './services/navigation'
 import { toast } from './services/toast'
 import type { User } from './types'
@@ -70,7 +70,6 @@ export default function App() {
   }
 
   function logout() {
-    void logoutGoogle()
     setToken(null)
     setSelectedOwnerId(null)
     setUser(null)
