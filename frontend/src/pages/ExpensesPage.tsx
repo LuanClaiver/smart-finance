@@ -101,6 +101,7 @@ export default function ExpensesPage() {
   const [attachmentUrl, setAttachmentUrl] = useState('')
   const [attachmentLoading, setAttachmentLoading] = useState(false)
   const [attachmentError, setAttachmentError] = useState('')
+  const [fullscreenAttachment, setFullscreenAttachment] = useState(false)
   const [error, setError] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
   const requestVersion = useRef(0)
@@ -174,6 +175,7 @@ export default function ExpensesPage() {
     let objectUrl = ''
     setAttachmentUrl('')
     setAttachmentError('')
+    setFullscreenAttachment(false)
     if (!selectedExpense?.attachment_path) {
       setAttachmentLoading(false)
       return () => undefined
@@ -194,6 +196,23 @@ export default function ExpensesPage() {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [selectedExpense?.id, selectedExpense?.attachment_path])
+
+  useEffect(() => {
+    if (!fullscreenAttachment) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreenAttachment(false)
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [fullscreenAttachment])
 
   function openNew() {
     setEditing(null)
@@ -403,11 +422,15 @@ export default function ExpensesPage() {
           {attachmentLoading && <p className="muted-text">Carregando comprovante...</p>}
           {attachmentError && <div className="form-error">{attachmentError}</div>}
           {attachmentUrl && selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <a className="secondary-button attachment-open-button" href={attachmentUrl} target="_blank" rel="noreferrer">Abrir comprovante em PDF</a>}
-          {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} />}
+          {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <button type="button" className="expense-attachment-image-button" onClick={() => setFullscreenAttachment(true)} aria-label="Abrir comprovante em tela cheia"><img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} /><small>Toque na imagem para abrir em tela cheia</small></button>}
         </section>
         <div className="form-actions"><button className="secondary-button" onClick={() => setSelectedExpense(null)}>Fechar</button></div>
       </article>
     </ModalCard>}
+    {fullscreenAttachment && attachmentUrl && <div className="attachment-lightbox" role="dialog" aria-modal="true" aria-label="Comprovante em tela cheia" onClick={() => setFullscreenAttachment(false)}>
+      <button type="button" className="attachment-lightbox-close" onClick={() => setFullscreenAttachment(false)} aria-label="Fechar comprovante">×</button>
+      <img className="attachment-lightbox-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense?.description || 'despesa'}`} onClick={(event) => event.stopPropagation()} />
+    </div>}
     {error && <div className="form-error">{error}</div>}
     {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
     <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>

@@ -17,8 +17,8 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at top right, #12361f 0, #07130d 38%, #040b07 100%); }
 button, input, select, textarea { font: inherit; }
-button { cursor: pointer; }
-button:disabled { cursor: wait; opacity: .65; }
+button, a, [role='button'], label.file-action-button { cursor: pointer; }
+button:disabled, input:disabled + *, label.file-action-button:has(input:disabled) { cursor: wait; opacity: .65; }
 input, select, textarea { width: 100%; border: 1px solid var(--border); color: var(--text); background: #08150e; border-radius: 10px; padding: 11px 12px; outline: none; }
 input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgb(34 197 94 / 12%); }
 select option { background: #0b1710; }
@@ -45,22 +45,25 @@ code { color: #86efac; word-break: break-all; }
 .auth-links button { border: 0; background: transparent; color: #86efac; padding: 0; }
 .default-admin { margin-top: 20px; padding: 12px; border-radius: 10px; background: #08150e; color: var(--muted); font-size: .85rem; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px 1fr; }
-.sidebar { position: sticky; top: 0; height: 100vh; padding: 20px 14px; border-right: 1px solid var(--border); background: rgb(6 17 10 / 94%); backdrop-filter: blur(14px); display: flex; flex-direction: column; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(220px, 250px) minmax(0, 1fr); }
+.sidebar { position: sticky; top: 0; height: 100vh; min-height: 0; overflow: hidden; padding: 20px 14px; border-right: 1px solid var(--border); background: rgb(6 17 10 / 94%); backdrop-filter: blur(14px); display: flex; flex-direction: column; }
 .brand { display: flex; gap: 12px; align-items: center; padding: 8px 8px 24px; }
 .brand-mark { width: 42px; height: 42px; border-radius: 13px; display: grid; place-content: center; background: linear-gradient(135deg, #22c55e, #166534); font-size: 1.3rem; }
 .brand div { display: grid; }
 .brand small, .sidebar-user small { color: var(--muted); font-size: .72rem; margin-top: 3px; }
-.sidebar nav { display: grid; gap: 6px; }
+.sidebar nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 6px; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #31513c transparent; }
+.sidebar nav::-webkit-scrollbar { width: 7px; }
+.sidebar nav::-webkit-scrollbar-thumb { border-radius: 999px; background: #31513c; }
 .nav-item { border: 0; border-radius: 10px; background: transparent; color: #9eb4a5; padding: 11px 12px; text-align: left; display: flex; gap: 12px; align-items: center; }
 .nav-item:hover { background: #0d2115; color: white; }
+button:not(:disabled):hover { cursor: pointer; }
 .nav-item.active { background: linear-gradient(90deg, rgb(34 197 94 / 20%), rgb(34 197 94 / 5%)); color: #86efac; box-shadow: inset 3px 0 #22c55e; }
 .sidebar-user { margin-top: auto; padding: 12px 8px 4px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 10px; }
 .avatar { width: 36px; height: 36px; border-radius: 11px; display: grid; place-content: center; background: #173823; color: #86efac; font-weight: 700; }
 .sidebar-user div:nth-child(2) { display: grid; min-width: 0; }
 .sidebar-user strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .icon-button, .notification-button { border: 1px solid var(--border); background: #0b1b12; color: #d7e9dc; border-radius: 10px; min-width: 38px; height: 38px; }
-.main-content { width: min(1500px, 100%); padding: 28px clamp(18px, 3vw, 48px) 60px; overflow: hidden; }
+.main-content { width: min(1500px, 100%); min-width: 0; padding: 28px clamp(18px, 3vw, 48px) 60px; overflow: hidden; }
 .mobile-nav { display: none; }
 
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
@@ -83,10 +86,11 @@ code { color: #86efac; word-break: break-all; }
 .alert-row.danger { border-left-color: var(--danger); }
 .alert-row span, .alert-row small { color: var(--muted); }
 
-.primary-button, .secondary-button, .danger-button { border-radius: 10px; padding: 11px 15px; border: 1px solid transparent; font-weight: 700; }
-.primary-button { background: linear-gradient(135deg, #22c55e, #15803d); color: white; box-shadow: 0 8px 24px rgb(34 197 94 / 18%); }
-.primary-button:hover { filter: brightness(1.08); }
-.secondary-button { background: #102419; border-color: var(--border); color: #d7e9dc; }
+.primary-button, .secondary-button, .danger-button { border-radius: 10px; padding: 11px 15px; border: 1px solid transparent; font-weight: 700; cursor: pointer; transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.primary-button, .secondary-button { background: linear-gradient(135deg, #22c55e, #15803d); border-color: rgb(74 222 128 / 42%); color: white; box-shadow: 0 8px 24px rgb(34 197 94 / 18%); }
+.primary-button:hover, .secondary-button:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 11px 30px rgb(34 197 94 / 26%); }
+.primary-button:active, .secondary-button:active, .danger-button:active { transform: translateY(0); }
+.primary-button:focus-visible, .secondary-button:focus-visible, .danger-button:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #4ade80; outline-offset: 2px; }
 .danger-button { background: rgb(239 68 68 / 10%); border-color: rgb(239 68 68 / 30%); color: #fca5a5; }
 .compact { padding: 9px 13px; white-space: nowrap; }
 .danger-text { color: #fca5a5 !important; }
@@ -261,7 +265,7 @@ button.alert-row { appearance: none; font: inherit; }
 .installments > div.installment-editing { display: block; padding: 16px 20px; opacity: 1; }
 .installment-edit-form { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; align-items: end; }
 .installment-edit-actions { display: flex; gap: 8px; align-items: end; }
-.installment-edit-form .secondary-button { background: #102419; border: 1px solid var(--border); }
+.installment-edit-form .secondary-button { border-color: rgb(74 222 128 / 42%); }
 
 @media (max-width: 1050px) {
   .installment-edit-form { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
@@ -813,4 +817,172 @@ button.alert-row { appearance: none; font: inherit; }
   .expense-attachment-image {
     max-height: 45vh;
   }
+}
+
+/* Smart Finance 0.3.6 — transferência entre computador e Android */
+.transfer-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.transfer-panel .primary-button,
+.transfer-panel .secondary-button {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.transfer-file-input {
+  display: none;
+}
+
+.transfer-preview {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgb(34 197 94 / 28%);
+  border-radius: 14px;
+  background: rgb(1 15 8 / 42%);
+}
+
+.transfer-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-preview-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.transfer-preview-grid b {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.expense-attachment-image-button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: center;
+  cursor: zoom-in;
+}
+
+.expense-attachment-image-button:hover,
+.expense-attachment-image-button:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+.expense-attachment-image-button .expense-attachment-image {
+  cursor: zoom-in;
+}
+
+.attachment-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background: rgb(0 0 0 / 94%);
+  backdrop-filter: blur(5px);
+}
+
+.attachment-lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 96vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 72%);
+  touch-action: pinch-zoom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.attachment-lightbox-close {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 5001;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 50%;
+  background: rgb(12 24 17 / 92%);
+  color: white;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+@media (max-width: 700px) {
+  .transfer-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .transfer-panel .primary-button,
+  .transfer-panel .secondary-button {
+    width: 100%;
+  }
+
+  .attachment-lightbox {
+    padding: max(62px, env(safe-area-inset-top)) 8px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .attachment-lightbox-image {
+    max-width: 100%;
+    max-height: calc(100vh - max(80px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+  }
+}
+
+
+.file-action-button {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.file-action-button input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Smart Finance 0.4.0 — todos os botoes de acao no verde escolhido */
+.primary-button,
+.secondary-button,
+.danger-button,
+.file-action-button {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  border-color: rgb(74 222 128 / 42%);
+  color: white;
+  box-shadow: 0 8px 24px rgb(34 197 94 / 18%);
+}
+.primary-button:hover,
+.secondary-button:hover,
+.danger-button:hover,
+.file-action-button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 11px 30px rgb(34 197 94 / 26%);
 }

@@ -1,0 +1,79 @@
+SMART FINANCE 0.4.0
+COMO ENVIAR AO GITHUB E GERAR O APK
+
+PARTE 1 - ENVIAR O PROJETO
+
+1. Extraia o ZIP completo para uma pasta nova.
+2. Abra a pasta:
+   02 - GitHub - Repositorio Completo
+3. Execute:
+   ENVIAR REPOSITORIO COMPLETO.bat
+4. Quando for solicitada a URL do repositorio, informe:
+   https://github.com/LuanClaiver/smart-finance.git
+5. Informe seu nome e e-mail do GitHub caso o script solicite.
+6. Autorize o GitHub no navegador quando o Git Credential Manager abrir.
+7. Aguarde a mensagem "Repositorio completo enviado com sucesso".
+
+Para atualizacoes futuras, use apenas:
+   ATUALIZAR GITHUB.bat
+
+PARTE 2 - CONFIGURAR A CHAVE DO ANDROID
+
+Acesse o repositorio no GitHub e abra:
+   Settings > Secrets and variables > Actions
+
+Crie estes tres Repository secrets:
+
+1. ANDROID_KEYSTORE_PASSWORD
+   Uma senha forte para o arquivo de assinatura.
+
+2. ANDROID_KEY_ALIAS
+   Sugestao: smart-finance
+
+3. ANDROID_KEY_PASSWORD
+   Uma senha forte. Pode ser igual a ANDROID_KEYSTORE_PASSWORD.
+
+Guarde as senhas. Sem a mesma chave e as mesmas senhas, futuras versoes nao
+poderao ser instaladas como atualizacao por cima do aplicativo anterior.
+
+PARTE 3 - GERAR A CHAVE UMA UNICA VEZ
+
+1. Abra a guia Actions.
+2. Escolha "01 - Gerar chave Android".
+3. Clique em "Run workflow" e confirme em "Run workflow".
+4. Aguarde a execucao ficar verde.
+5. Abra a execucao concluida.
+6. Em Artifacts, baixe "chave-smart-finance".
+7. Extraia e guarde em local seguro:
+   smart-finance-release.jks
+8. Abra keystore-base64.txt e copie todo o conteudo, sem espacos extras.
+9. Volte a:
+   Settings > Secrets and variables > Actions
+10. Crie o quarto Repository secret:
+    ANDROID_KEYSTORE_BASE64
+11. Cole nele o conteudo inteiro de keystore-base64.txt.
+
+Nao execute o fluxo 01 novamente para substituir a chave depois que distribuir
+o aplicativo. A mesma chave deve ser usada nas atualizacoes futuras.
+
+PARTE 4 - GERAR O APK
+
+1. Abra a guia Actions.
+2. Escolha "02 - Gerar APK Android".
+3. Clique em "Run workflow" e confirme.
+4. Aguarde a execucao ficar verde.
+5. Abra a execucao concluida.
+6. Em Artifacts, baixe "Smart-Finance-APK".
+7. Extraia o ZIP baixado.
+8. O aplicativo estara em:
+   Smart-Finance.apk
+9. Envie esse APK ao celular e instale.
+
+OBSERVACOES
+
+- O primeiro envio do codigo tambem pode disparar automaticamente o fluxo 02.
+  Se os quatro segredos ainda nao estiverem configurados, essa primeira execucao
+  ficara vermelha. Configure os segredos e execute o fluxo 02 manualmente.
+- O Android pode pedir autorizacao para instalar aplicativos desconhecidos.
+- A leitura de comprovantes pela camera aparece somente no APK Android.
+- A primeira leitura por camera pode precisar de internet para carregar o OCR.

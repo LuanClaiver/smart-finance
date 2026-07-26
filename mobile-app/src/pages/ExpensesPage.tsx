@@ -2,11 +2,13 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import ReceiptScanButton from '../components/ReceiptScanButton'
 import { api, currentMonth, jsonBody, money, today } from '../services/api'
 import { confirmAction } from '../services/confirm'
 import { readNavigationTarget, scrollToTarget } from '../services/navigation'
 import { toast } from '../services/toast'
 import type { Account, Card, Category, Expense } from '../types'
+import type { ReceiptDraft } from '../services/mobile/receiptScanner'
 
 function payloadFromExpense(item: Expense, changes: Partial<Expense> = {}) {
   const value = { ...item, ...changes }
@@ -83,6 +85,20 @@ function formatDate(value?: string): string {
   return year && month && day ? `${day}/${month}/${year}` : value
 }
 
+function normalizedCategoryName(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+function categoryIdFromHint(categories: Category[], hint: string): number | '' {
+  if (!hint) return ''
+  const normalizedHint = normalizedCategoryName(hint)
+  const match = categories.find((item) => {
+    const name = normalizedCategoryName(item.name)
+    return name === normalizedHint || name.includes(normalizedHint) || normalizedHint.includes(name)
+  })
+  return match?.id || ''
+}
+
 export default function ExpensesPage() {
   const route = readNavigationTarget('expenses')
   const targetId = route.itemId
@@ -101,8 +117,12 @@ export default function ExpensesPage() {
   const [attachmentUrl, setAttachmentUrl] = useState('')
   const [attachmentLoading, setAttachmentLoading] = useState(false)
   const [attachmentError, setAttachmentError] = useState('')
+  const [fullscreenAttachment, setFullscreenAttachment] = useState(false)
   const [error, setError] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
+  const [scanDraft, setScanDraft] = useState<ReceiptDraft | null>(null)
+  const [scanVersion, setScanVersion] = useState(0)
+  const [scannedReceiptFile, setScannedReceiptFile] = useState<File | null>(null)
   const requestVersion = useRef(0)
 
   const loadExpenses = useCallback(async (selectedMonth: string) => {
@@ -174,6 +194,7 @@ export default function ExpensesPage() {
     let objectUrl = ''
     setAttachmentUrl('')
     setAttachmentError('')
+    setFullscreenAttachment(false)
     if (!selectedExpense?.attachment_path) {
       setAttachmentLoading(false)
       return () => undefined
@@ -195,19 +216,57 @@ export default function ExpensesPage() {
     }
   }, [selectedExpense?.id, selectedExpense?.attachment_path])
 
+  useEffect(() => {
+    if (!fullscreenAttachment) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreenAttachment(false)
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [fullscreenAttachment])
+
   function openNew() {
     setEditing(null)
     setFixed(false)
     setPaymentMethod('pix')
     setExpenseStatus('pending')
     setPaidDate('')
+    setScanDraft(null)
+    setScannedReceiptFile(null)
+    setScanVersion((current) => current + 1)
     setError('')
     setShowForm(true)
+  }
+
+  function openFromReceipt(draft: ReceiptDraft, file: File) {
+    setEditing(null)
+    setFixed(false)
+    setPaymentMethod(draft.paymentMethod || 'pix')
+    const shouldMarkPaid = draft.paymentMethod !== 'credit_card' && draft.isLikelyPaid
+    setExpenseStatus(shouldMarkPaid ? 'paid' : 'pending')
+    setPaidDate(shouldMarkPaid ? draft.documentDate || today() : '')
+    setScanDraft(draft)
+    setScannedReceiptFile(file)
+    setScanVersion((current) => current + 1)
+    setError('')
+    setShowForm(true)
+    window.requestAnimationFrame(() => document.getElementById('expense-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   function openEdit(item: Expense) {
     setEditing(item)
     setFixed(false)
+    setScanDraft(null)
+    setScannedReceiptFile(null)
+    setScanVersion((current) => current + 1)
     setPaymentMethod(item.card_id ? 'credit_card' : item.payment_method || 'pix')
     setExpenseStatus(item.status || 'pending')
     setPaidDate(item.paid_date || '')
@@ -222,6 +281,8 @@ export default function ExpensesPage() {
     setFixed(false)
     setExpenseStatus('pending')
     setPaidDate('')
+    setScanDraft(null)
+    setScannedReceiptFile(null)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -230,10 +291,10 @@ export default function ExpensesPage() {
     const usesCard = paymentMethod === 'credit_card'
     const purchaseDate = usesCard
       ? String(form.get('purchase_date') || editing?.purchase_date || today())
-      : String(editing?.purchase_date || today())
+      : String(editing?.purchase_date || scanDraft?.documentDate || today())
     const dueDate = usesCard || Boolean(editing)
       ? String(form.get('due_date') || editing?.due_date || today())
-      : String(paidDate || today())
+      : String(paidDate || scanDraft?.documentDate || today())
     const normalizedStatus = paidDate ? 'paid' : expenseStatus
     const normalizedPaidDate = normalizedStatus === 'paid' ? (paidDate || today()) : null
     try {
@@ -274,9 +335,11 @@ export default function ExpensesPage() {
         }) })
         const visibleNow = created.filter((item) => item.list_month === month)
         setItems((current) => mergeExpenses(current, visibleNow))
+        const first = created[0]
+        const receiptToAttach = scannedReceiptFile
+        if (first && receiptToAttach) await uploadAttachment(first.id, receiptToAttach)
         closeForm()
         await loadExpenses(month)
-        const first = created[0]
         const invoiceMessage = first?.card_id && first.billing_month !== month
           ? ` A cobrança do cartão ficou na fatura ${first.billing_month}.`
           : ''
@@ -342,20 +405,21 @@ export default function ExpensesPage() {
   }
 
   return <>
-    <PageHeader title="Despesas" subtitle="Gastos fixos, variáveis, cartões e parcelamentos" actions={<><input className="month-input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /><button className="primary-button compact" onClick={openNew}>+ Nova despesa</button></>} />
-    {showForm && <ModalCard onClose={closeForm} label={editing ? `Editar despesa ${editing.description}` : 'Nova despesa'} wide><form id="expense-form" key={editing?.id || 'new-expense'} className="panel form-grid modal-form" onSubmit={submit}>
+    <PageHeader title="Despesas" subtitle="Gastos fixos, variáveis, cartões e parcelamentos" actions={<><input className="month-input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /><ReceiptScanButton kind="expense" onScanned={openFromReceipt} /><button className="primary-button compact" onClick={openNew}>+ Nova despesa</button></>} />
+    {showForm && <ModalCard onClose={closeForm} label={editing ? `Editar despesa ${editing.description}` : 'Nova despesa'} wide><form id="expense-form" key={editing?.id || `new-expense-${scanVersion}`} className="panel form-grid modal-form" onSubmit={submit}>
       <h3 className="form-title wide">{editing ? 'Editar despesa ou pagamento' : 'Nova despesa'}</h3>
-      {!editing && <label className="toggle-line wide"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Criar como gasto fixo mensal</label>}
-      <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || ''} /></label>
-      <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={editing ? Number(editing.amount) : ''} /></label>
-      <label>Categoria<select name="category_id" defaultValue={editing?.category_id || ''}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Estabelecimento<input name="merchant" defaultValue={editing?.merchant || ''} /></label>
+      {scanDraft && <div className="receipt-scan-note"><strong>✓ Dados preenchidos pela câmera</strong><span>Revise valor, categoria e forma de pagamento antes de salvar. A foto será anexada ao lançamento.</span>{scanDraft.confidence > 0 && <small>Confiança da leitura: {scanDraft.confidence}%</small>}</div>}
+      {!editing && !scanDraft && <label className="toggle-line wide"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Criar como gasto fixo mensal</label>}
+      <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || scanDraft?.description || ''} /></label>
+      <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={editing ? Number(editing.amount) : scanDraft?.amount ?? ''} /></label>
+      <label>Categoria<select name="category_id" defaultValue={editing?.category_id || categoryIdFromHint(categories, scanDraft?.categoryHint || '')}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Estabelecimento<input name="merchant" defaultValue={editing?.merchant || scanDraft?.merchant || ''} /></label>
       <label>Forma de pagamento<select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option>{!fixed && <option value="credit_card">Cartão de crédito</option>}</select></label>
       <label>Conta<select name="account_id" defaultValue={editing?.account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       {!fixed ? <>
-        {(Boolean(editing) || paymentMethod === 'credit_card') && <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || `${month}-10`} required /></label>}
+        {(Boolean(editing) || paymentMethod === 'credit_card') && <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || scanDraft?.documentDate || `${month}-10`} required /></label>}
         {paymentMethod === 'credit_card' && <>
-          <label>Data da compra<input name="purchase_date" type="date" defaultValue={editing?.purchase_date || today()} required /></label>
+          <label>Data da compra<input name="purchase_date" type="date" defaultValue={editing?.purchase_date || scanDraft?.documentDate || today()} required /></label>
           <label>Cartão<select name="card_id" defaultValue={editing?.card_id || ''} required><option value="">Selecione o cartão</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label>Parcelas<input name="installments" type="number" min="1" max="360" defaultValue="1" disabled={Boolean(editing)} />{editing?.total_installments && <small>Esta edição altera somente a parcela {editing.installment_number}/{editing.total_installments}.</small>}</label>
         </>}
@@ -370,7 +434,7 @@ export default function ExpensesPage() {
           setPaidDate(nextDate)
           if (nextDate) setExpenseStatus('paid')
         }} /><small>{paidDate ? 'Ao informar uma data, a despesa será marcada como paga.' : 'Preencha para registrar o pagamento.'}</small></label>
-        <label className="wide">Observações<textarea name="notes" rows={2} defaultValue={editing?.notes || ''} /></label>
+        <label className="wide">Observações<textarea name="notes" rows={2} defaultValue={editing?.notes || scanDraft?.notes || ''} /></label>
       </> : <>
         <label>Dia do vencimento<input name="due_day" type="number" min="1" max="31" defaultValue="10" required /></label>
         <label>Gerar próximos meses<input name="months_to_generate" type="number" min="1" max="120" defaultValue="12" /></label>
@@ -403,11 +467,15 @@ export default function ExpensesPage() {
           {attachmentLoading && <p className="muted-text">Carregando comprovante...</p>}
           {attachmentError && <div className="form-error">{attachmentError}</div>}
           {attachmentUrl && selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <a className="secondary-button attachment-open-button" href={attachmentUrl} target="_blank" rel="noreferrer">Abrir comprovante em PDF</a>}
-          {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} />}
+          {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <button type="button" className="expense-attachment-image-button" onClick={() => setFullscreenAttachment(true)} aria-label="Abrir comprovante em tela cheia"><img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} /><small>Toque na imagem para abrir em tela cheia</small></button>}
         </section>
         <div className="form-actions"><button className="secondary-button" onClick={() => setSelectedExpense(null)}>Fechar</button></div>
       </article>
     </ModalCard>}
+    {fullscreenAttachment && attachmentUrl && <div className="attachment-lightbox" role="dialog" aria-modal="true" aria-label="Comprovante em tela cheia" onClick={() => setFullscreenAttachment(false)}>
+      <button type="button" className="attachment-lightbox-close" onClick={() => setFullscreenAttachment(false)} aria-label="Fechar comprovante">×</button>
+      <img className="attachment-lightbox-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense?.description || 'despesa'}`} onClick={(event) => event.stopPropagation()} />
+    </div>}
     {error && <div className="form-error">{error}</div>}
     {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
     <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>

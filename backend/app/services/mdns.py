@@ -5,7 +5,7 @@ from typing import Any
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
-except ImportError:  # O servidor continua funcionando mesmo sem o anúncio mDNS.
+except Exception:  # mDNS é opcional; erros de DLL/caminho não derrubam o servidor.
     IPVersion = ServiceInfo = Zeroconf = None  # type: ignore[assignment]
 
 

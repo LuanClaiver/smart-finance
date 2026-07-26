@@ -56,3 +56,162 @@
 
 /* Smart Finance 0.3.4 runtime */
 .income-received-note{margin:0;padding:10px 12px;border:1px solid rgb(34 197 94 / 30%);border-radius:10px;background:rgb(34 197 94 / 8%);color:#a7f3d0;font-size:.86rem}.settings-button-row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.github-project-button,.attachment-open-button{display:inline-flex;align-items:center;justify-content:center;width:auto;text-decoration:none}.developer-panel p{margin-bottom:16px}.expense-row-clickable,tr[data-expense-id]{cursor:pointer}.expense-row-clickable:hover td,tr[data-expense-id]:hover td{background-color:rgb(34 197 94 / 4%)}.expense-row-clickable:focus-visible{outline:2px solid #22c55e;outline-offset:-2px}.expense-has-attachment{margin-top:4px;color:#86efac;font-size:.72rem;font-weight:500}.expense-detail-panel{width:min(920px,100%)}.expense-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.expense-detail-header small{color:var(--muted)}.expense-detail-header h3{margin:4px 0 0}.expense-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0}.expense-detail-grid>div{min-width:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgb(1 15 8 / 35%)}.expense-detail-grid dt{margin-bottom:5px;color:var(--muted);font-size:.75rem}.expense-detail-grid dd{margin:0;overflow-wrap:anywhere;font-weight:650}.expense-detail-notes,.expense-attachment-preview{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px}.expense-detail-notes p{margin:8px 0 0;white-space:pre-wrap}.expense-attachment-preview h4{margin:0 0 12px}.muted-text{color:var(--muted)}.expense-attachment-image{display:block;width:100%;max-height:58vh;object-fit:contain;border-radius:12px;background:#020b06}@media(max-width:820px){.expense-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:540px){.settings-button-row>*{width:100%}.expense-detail-grid{grid-template-columns:1fr}.expense-attachment-image{max-height:45vh}}
+
+/* Smart Finance 0.3.6 — transferência entre computador e Android */
+.transfer-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.transfer-panel .primary-button,
+.transfer-panel .secondary-button {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.transfer-file-input {
+  display: none;
+}
+
+.transfer-preview {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgb(34 197 94 / 28%);
+  border-radius: 14px;
+  background: rgb(1 15 8 / 42%);
+}
+
+.transfer-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-preview-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.transfer-preview-grid b {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.expense-attachment-image-button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: center;
+  cursor: zoom-in;
+}
+
+.expense-attachment-image-button:hover,
+.expense-attachment-image-button:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+.expense-attachment-image-button .expense-attachment-image {
+  cursor: zoom-in;
+}
+
+.attachment-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background: rgb(0 0 0 / 94%);
+  backdrop-filter: blur(5px);
+}
+
+.attachment-lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 96vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 72%);
+  touch-action: pinch-zoom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.attachment-lightbox-close {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 5001;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 50%;
+  background: rgb(12 24 17 / 92%);
+  color: white;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+@media (max-width: 700px) {
+  .transfer-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .transfer-panel .primary-button,
+  .transfer-panel .secondary-button {
+    width: 100%;
+  }
+
+  .attachment-lightbox {
+    padding: max(62px, env(safe-area-inset-top)) 8px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .attachment-lightbox-image {
+    max-width: 100%;
+    max-height: calc(100vh - max(80px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+  }
+}
+
+
+/* Smart Finance 0.4.0 — correções da interface desktop */
+.default-admin { display: none !important; }
+@media (min-width: 821px) {
+  .app-shell { grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) !important; }
+  .sidebar { min-height: 0; overflow: hidden; }
+  .sidebar nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #31513c transparent; }
+  .sidebar nav::-webkit-scrollbar { width: 7px; }
+  .sidebar nav::-webkit-scrollbar-thumb { border-radius: 999px; background: #31513c; }
+  .main-content { min-width: 0; }
+}
+
+/* Smart Finance 0.4.0 — padrao visual e cursor dos botoes */
+button,a,[role="button"],label.file-action-button{cursor:pointer}
+button,.primary-button,.secondary-button,.danger-button,label.file-action-button{transition:transform .16s ease,filter .16s ease,box-shadow .16s ease,border-color .16s ease}
+.primary-button,.secondary-button,label.file-action-button.primary-button,label.file-action-button.secondary-button{background:linear-gradient(135deg,#22c55e,#15803d);border-color:rgb(74 222 128 / 42%);color:#fff;box-shadow:0 8px 24px rgb(34 197 94 / 18%)}
+.primary-button:hover,.secondary-button:hover,label.file-action-button:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 11px 30px rgb(34 197 94 / 26%)}
+.primary-button:active,.secondary-button:active,.danger-button:active,label.file-action-button:active{transform:translateY(0)}
+.primary-button:focus-visible,.secondary-button:focus-visible,.danger-button:focus-visible,button:focus-visible,a:focus-visible,label.file-action-button:focus-within{outline:2px solid #4ade80;outline-offset:2px}
+button:disabled,label.file-action-button:has(input:disabled){cursor:wait;opacity:.65}
+.installment-edit-form .secondary-button{background:linear-gradient(135deg,#22c55e,#15803d);border-color:rgb(74 222 128 / 42%);color:#fff}
+.primary-button,.secondary-button,.danger-button,.file-action-button{background:linear-gradient(135deg,#22c55e,#15803d);border-color:rgb(74 222 128 / 42%);color:#fff;box-shadow:0 8px 24px rgb(34 197 94 / 18%)}
+.primary-button:hover,.secondary-button:hover,.danger-button:hover,.file-action-button:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 11px 30px rgb(34 197 94 / 26%)}

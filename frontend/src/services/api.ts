@@ -40,14 +40,25 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   const method = (options.method || 'GET').toUpperCase()
   const cache = method === 'GET' ? 'no-store' : options.cache
-  const response = await fetch(`${API_BASE}${withOwner(path)}`, { ...options, headers, cache })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${withOwner(path)}`, { ...options, headers, cache })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new ApiError(`O servidor não respondeu. Detalhe: ${detail}`, 0)
+  }
+
   if (!response.ok) {
-    let message = 'Não foi possível concluir a operação.'
+    const raw = await response.text()
+    let message = raw.trim()
     try {
-      const body = await response.json()
-      message = body.detail || body.message || message
+      const body = raw ? JSON.parse(raw) : null
+      message = body?.detail || body?.message || message
     } catch {
-      // resposta sem JSON
+      // Mantém o texto bruto retornado pelo servidor.
+    }
+    if (!message || message === 'Internal Server Error') {
+      message = `Erro HTTP ${response.status}. Consulte a janela preta do Smart Finance.`
     }
     if (response.status === 401) setToken(null)
     throw new ApiError(message, response.status)

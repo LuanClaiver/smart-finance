@@ -74,7 +74,6 @@ export default function AuthPage({ onAuthenticated }: { onAuthenticated: (user: 
           {mode !== 'login' && <button onClick={() => setMode('login')}>Voltar ao login</button>}
           {mode === 'login' && <><button onClick={() => setMode('register')}>Criar conta</button><button onClick={() => setMode('recover')}>Esqueci a senha</button></>}
         </div>
-        {mode === 'login' && <div className="default-admin"><strong>Conta inicial:</strong> Admin / 1234</div>}
       </div>
     </section>
   </div>

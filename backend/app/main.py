@@ -10,8 +10,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, SessionLocal, engine
-from .routers import admin, auth, backups, finance, reports
-from .services.backup import create_backup
+from .routers import admin, auth, backups, finance, reports, transfer
+from .services.backup import (
+    apply_pending_database_import,
+    create_backup,
+    finalize_pending_database_import,
+)
 from .services.mdns import MdnsAnnouncer
 from .services.migrations import run_migrations
 from .services.seed import seed_admin
@@ -23,10 +27,14 @@ mdns = MdnsAnnouncer(port=int(os.getenv("SMART_FINANCE_PORT", "8000")))
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import_applied = apply_pending_database_import()
     Base.metadata.create_all(bind=engine)
     run_migrations(engine)
     with SessionLocal() as db:
         seed_admin(db)
+    if import_applied:
+        finalize_pending_database_import()
+        print("[Banco] Importação concluída com sucesso após a reinicialização.")
     try:
         create_backup(force=False)
     except Exception as exc:
@@ -36,7 +44,7 @@ async def lifespan(_app: FastAPI):
     mdns.stop()
 
 
-app = FastAPI(title="Smart Finance API", version="0.3.5", lifespan=lifespan)
+app = FastAPI(title="Smart Finance API", version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -61,11 +69,12 @@ app.include_router(admin.router)
 app.include_router(finance.router)
 app.include_router(reports.router)
 app.include_router(backups.router)
+app.include_router(transfer.router)
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Smart Finance", "version": "0.3.5"}
+    return {"status": "ok", "app": "Smart Finance", "version": "0.4.0"}
 
 
 if FRONTEND_DIST.exists():
