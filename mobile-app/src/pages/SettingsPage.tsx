@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import { api, jsonBody, setToken } from '../services/api'
 import { confirmAction } from '../services/confirm'
+import { navigateTo } from '../services/navigation'
 import { exportMobileDatabase, importMobileDatabase } from '../services/mobile/backup'
 import {
   importTransferPackage,
@@ -225,7 +226,8 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       setTransferPreview(null)
       if (transferInputRef.current) transferInputRef.current.value = ''
       await loadCategories()
-      toast.success('Importação concluída', result.backupCreated ? 'O backup anterior foi criado e os dados já estão disponíveis.' : summary)
+      toast.success('Importação concluída', result.backupCreated ? 'O backup anterior foi criado. Abrindo a Visão geral com os dados importados.' : summary)
+      navigateTo('dashboard')
     } catch (err) {
       const failure = err instanceof Error ? err.message : 'Erro ao importar os dados'
       setError(failure)

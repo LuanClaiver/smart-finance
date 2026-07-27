@@ -177,8 +177,8 @@ export async function closeDb(): Promise<void> {
 export async function seedCategories(database: SQLiteDBConnection, userId: number): Promise<void> {
   const existing = await database.query('SELECT id FROM categories WHERE owner_id = ? LIMIT 1', [userId])
   if ((existing.values?.length || 0) > 0) return
-  for (const name of EXPENSE_CATEGORIES) await database.run('INSERT INTO categories(owner_id, name, kind, is_active) VALUES (?, ?, ?, 1)', [userId, name, 'expense'])
-  for (const name of INCOME_CATEGORIES) await database.run('INSERT INTO categories(owner_id, name, kind, is_active) VALUES (?, ?, ?, 1)', [userId, name, 'income'])
+  for (const name of EXPENSE_CATEGORIES) await database.run('INSERT INTO categories(owner_id, name, kind, is_active) VALUES (?, ?, ?, 1)', [userId, name, 'expense'], false)
+  for (const name of INCOME_CATEGORIES) await database.run('INSERT INTO categories(owner_id, name, kind, is_active) VALUES (?, ?, ?, 1)', [userId, name, 'income'], false)
 }
 
 async function seed(database: SQLiteDBConnection): Promise<void> {
@@ -190,11 +190,12 @@ async function seed(database: SQLiteDBConnection): Promise<void> {
       `INSERT INTO users(username, display_name, email, password_hash, role, is_active, must_change_password, created_at)
        VALUES (?, ?, ?, ?, 'admin', 1, 1, ?)`,
       ['Admin', 'Administrador', 'admin@smartfinance.com', passwordHash, nowIso()],
+      false,
     )
     adminId = Number(created.changes?.lastId || 0)
   }
   if (adminId) await seedCategories(database, adminId)
-  await database.run('INSERT OR REPLACE INTO app_meta(key, value) VALUES (?, ?)', ['schema_version', String(DATABASE_VERSION)])
+  await database.run('INSERT OR REPLACE INTO app_meta(key, value) VALUES (?, ?)', ['schema_version', String(DATABASE_VERSION)], false)
 }
 
 export function normalizeRow<T extends Record<string, unknown>>(row: T): T {
@@ -219,7 +220,9 @@ export async function queryOne<T extends Record<string, unknown>>(sql: string, v
 
 export async function execute(sql: string, values: unknown[] = []): Promise<number> {
   const database = await getDb()
-  const result = await database.run(sql, values)
+  // Cada comando participa da transação externa quando houver uma. O terceiro
+  // argumento false impede o plugin de tentar abrir outra transação por comando.
+  const result = await database.run(sql, values, false)
   return Number(result.changes?.lastId || 0)
 }
 
@@ -228,17 +231,31 @@ export async function executeScript(sql: string): Promise<void> {
   await database.execute(sql)
 }
 
+let transactionQueue: Promise<void> = Promise.resolve()
+
 export async function inTransaction<T>(work: (database: SQLiteDBConnection) => Promise<T>): Promise<T> {
-  const database = await getDb()
-  await database.beginTransaction()
-  try {
-    const result = await work(database)
-    await database.commitTransaction()
-    return result
-  } catch (error) {
-    await database.rollbackTransaction()
-    throw error
-  }
+  const task = transactionQueue.then(async () => {
+    const database = await getDb()
+
+    // Recupera uma transação interrompida por uma execução anterior do APK.
+    const previous = await database.isTransactionActive().catch(() => ({ result: false }))
+    if (previous.result) await database.rollbackTransaction()
+
+    await database.beginTransaction()
+    try {
+      const result = await work(database)
+      await database.commitTransaction()
+      return result
+    } catch (error) {
+      const active = await database.isTransactionActive().catch(() => ({ result: false }))
+      if (active.result) await database.rollbackTransaction()
+      throw error
+    }
+  })
+
+  // Serializa importações e outras operações compostas no mesmo banco.
+  transactionQueue = task.then(() => undefined, () => undefined)
+  return task
 }
 
 export { DATABASE_NAME }

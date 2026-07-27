@@ -224,6 +224,7 @@ async function createExpenses(owner: number, payload: Record<string, unknown>): 
         [owner, description, amounts[index], purchase, due, paidDate, payload.category_id || null, String(payload.expense_type || 'variable'),
           String(payload.payment_method || 'pix'), String(payload.merchant || ''), String(payload.notes || ''), normalizedStatus,
           payload.account_id || null, cardId, group, count > 1 ? index + 1 : null, count > 1 ? count : null, billingMonth, listMonth, new Date().toISOString()],
+        false,
       )
       const row = await database.query('SELECT * FROM expenses WHERE id = ?', [inserted.changes?.lastId])
       if (row.values?.[0]) created.push(normalizeExpense(row.values[0] as Record<string, unknown>))

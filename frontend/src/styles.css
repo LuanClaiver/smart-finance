@@ -1876,3 +1876,41 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* Smart Finance 0.4.0 — tela de acesso sem corte em janelas baixas */
+.auth-screen {
+  width: 100%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+@media (min-width: 901px) {
+  .auth-frame {
+    min-height: min(760px, max(680px, calc(100dvh - 48px))) !important;
+  }
+}
+.auth-links {
+  width: 100%;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+}
+.auth-links button { min-width: 0; white-space: nowrap; }
+@media (max-width: 590px) {
+  .auth-screen {
+    min-height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)) !important;
+  }
+  .auth-frame { width: 100%; max-width: 100%; }
+  .auth-panel { width: 100%; min-width: 0; }
+  .auth-links { gap: 8px !important; }
+  .auth-links button { font-size: clamp(.72rem, 3.25vw, .82rem) !important; }
+}
+@media (min-width: 901px) and (max-height: 720px) {
+  .auth-hero { padding: 32px 40px !important; gap: 24px !important; }
+  .auth-hero-copy h1 { font-size: clamp(2.7rem, 4.2vw, 4rem) !important; }
+  .auth-feature-grid article { min-height: 82px !important; }
+  .auth-panel { padding: 30px 42px !important; }
+}
