@@ -13,6 +13,7 @@ type DownloadResult = { name: string; uri: string; location: string }
 
 type SmartFinanceDownloadsPlugin = {
   saveFile(options: { sourceUri: string; filename: string; mimeType: string }): Promise<DownloadResult>
+  replaceDatabase(options: { sourceUri: string; targetUri: string }): Promise<{ message: string }>
 }
 
 const SmartFinanceDownloads = registerPlugin<SmartFinanceDownloadsPlugin>('SmartFinanceDownloads')
@@ -69,5 +70,59 @@ export async function exportMobileDatabase(): Promise<{ message: string; name: s
     return { message: `Banco baixado em ${result.location || 'Downloads'}`, name: result.name || filename }
   } finally {
     await getDb()
+  }
+}
+
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length))
+    binary += String.fromCharCode(...Array.from(chunk))
+  }
+  return btoa(binary)
+}
+
+function assertSqliteFile(bytes: Uint8Array): void {
+  const signature = new TextDecoder('ascii').decode(bytes.subarray(0, 16))
+  if (signature !== 'SQLite format 3\u0000') {
+    throw new Error('O arquivo selecionado não é um banco SQLite válido.')
+  }
+}
+
+export async function importMobileDatabase(file: File): Promise<{ message: string; name: string }> {
+  if (!Capacitor.isNativePlatform()) {
+    throw new Error('A importação do banco está disponível somente no aplicativo Android.')
+  }
+  if (!file.name.toLowerCase().endsWith('.db')) {
+    throw new Error('Selecione um arquivo .db exportado pelo Smart Finance no celular.')
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  assertSqliteFile(bytes)
+  await createMobileBackup(false)
+
+  const temporaryName = `SmartFinance/importacao-${Date.now()}.db`
+  const temporary = await Filesystem.writeFile({
+    path: temporaryName,
+    data: bytesToBase64(bytes),
+    directory: Directory.Cache,
+    recursive: true,
+  })
+
+  const database = await getDb()
+  const target = await database.getUrl()
+  await closeDb()
+
+  try {
+    await SmartFinanceDownloads.replaceDatabase({ sourceUri: temporary.uri, targetUri: target.url })
+    await getDb()
+    return { message: 'Banco importado. Entre novamente para atualizar a sessão', name: file.name }
+  } catch (error) {
+    await getDb().catch(() => undefined)
+    throw error
+  } finally {
+    await Filesystem.deleteFile({ path: temporaryName, directory: Directory.Cache }).catch(() => undefined)
   }
 }

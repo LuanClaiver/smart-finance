@@ -3,6 +3,7 @@ import Shell from './components/Shell'
 import { api, setSelectedOwnerId, setToken } from './services/api'
 import { navigateTo, readNavigationTarget } from './services/navigation'
 import { toast } from './services/toast'
+import { applyTheme, getInitialTheme, type AppTheme } from './services/theme'
 import type { User } from './types'
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
@@ -24,6 +25,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [ownerVersion, setOwnerVersion] = useState(0)
   const [routeVersion, setRouteVersion] = useState(0)
+  const [theme, setTheme] = useState<AppTheme>(getInitialTheme)
 
   async function configureUser(current: User) {
     // Define primeiro qual banco de usuário a API deve consultar. Assim, a página
@@ -42,6 +44,10 @@ export default function App() {
     }
     setUser(current)
   }
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     const syncRoute = () => {
@@ -80,8 +86,8 @@ export default function App() {
     toast.info('Sessão encerrada', 'Você saiu do Smart Finance.')
   }
 
-  if (loading) return <div className="splash"><div className="hero-logo">▥</div><strong>Smart Finance</strong></div>
-  if (!user) return <AuthPage onAuthenticated={configureUser} />
+  if (loading) return <div className="splash"><div className="hero-logo"><img src="/icon.svg" alt="" /></div><strong>Smart Finance</strong></div>
+  if (!user) return <AuthPage onAuthenticated={configureUser} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
 
   const pageKey = `${page}-${ownerVersion}-${routeVersion}`
   const content = page === 'dashboard' ? <DashboardPage key={pageKey} />
@@ -94,5 +100,5 @@ export default function App() {
     : page === 'admin' && user.role === 'admin' ? <AdminPage key={pageKey} currentUser={user} />
     : <SettingsPage key={pageKey} user={user} onUser={configureUser} />
 
-  return <Shell user={user} active={page} ownerUsers={ownerUsers} ownerId={ownerId} onOwnerChange={changeOwner} onNavigate={navigate} onLogout={logout}>{content}</Shell>
+  return <Shell user={user} active={page} ownerUsers={ownerUsers} ownerId={ownerId} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onOwnerChange={changeOwner} onNavigate={navigate} onLogout={logout}>{content}</Shell>
 }

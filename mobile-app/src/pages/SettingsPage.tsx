@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import { api, jsonBody, setToken } from '../services/api'
 import { confirmAction } from '../services/confirm'
-import { exportMobileDatabase } from '../services/mobile/backup'
+import { exportMobileDatabase, importMobileDatabase } from '../services/mobile/backup'
 import {
   importTransferPackage,
   previewTransferPackage,
@@ -11,8 +11,6 @@ import {
 } from '../services/mobile/transfer'
 import { toast } from '../services/toast'
 import type { Category, User } from '../types'
-
-type Backup = { name: string; size: number; created_at: string }
 
 function formatPackageDate(value: string): string {
   if (!value) return 'Data não informada'
@@ -23,24 +21,21 @@ function formatPackageDate(value: string): string {
 export default function SettingsPage({ user, onUser }: { user: User; onUser: (user: User) => void }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [backups, setBackups] = useState<Backup[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [transferFile, setTransferFile] = useState<File | null>(null)
   const [transferPreview, setTransferPreview] = useState<TransferPreview | null>(null)
   const [readingTransfer, setReadingTransfer] = useState(false)
   const [importingTransfer, setImportingTransfer] = useState(false)
+  const [importingDatabase, setImportingDatabase] = useState(false)
   const passwordFormRef = useRef<HTMLFormElement>(null)
   const recoveryFormRef = useRef<HTMLFormElement>(null)
   const categoryFormRef = useRef<HTMLFormElement>(null)
   const transferInputRef = useRef<HTMLInputElement>(null)
+  const databaseInputRef = useRef<HTMLInputElement>(null)
 
-  const loadBackups = () => user.role === 'admin'
-    ? api<Backup[]>('/backups').then(setBackups).catch(() => undefined)
-    : Promise.resolve()
   const loadCategories = () => api<Category[]>('/categories').then(setCategories).catch(() => undefined)
 
   useEffect(() => {
-    void loadBackups()
     void loadCategories()
   }, [user.role])
 
@@ -132,19 +127,6 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     }
   }
 
-  async function createBackup() {
-    try {
-      const result = await api<{ message: string; name: string }>('/backups', { method: 'POST' })
-      setMessage(`${result.message}: ${result.name}`)
-      await loadBackups()
-      toast.success('Backup criado', result.name)
-    } catch (err) {
-      const failure = err instanceof Error ? err.message : 'Erro no backup'
-      setError(failure)
-      toast.error('Não foi possível criar o backup', failure)
-    }
-  }
-
   async function exportDatabase() {
     try {
       setError('')
@@ -155,6 +137,41 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       const failure = err instanceof Error ? err.message : 'Erro ao exportar banco'
       setError(failure)
       toast.error('Não foi possível exportar o banco', failure)
+    }
+  }
+
+  async function importDatabaseFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const confirmed = await confirmAction({
+      title: 'Importar banco completo?',
+      message: 'O banco atual do aplicativo será substituído pelo arquivo selecionado.',
+      detail: 'Antes da substituição, o Smart Finance criará automaticamente um backup local de segurança. Use somente um .db exportado pelo aplicativo Android.',
+      confirmLabel: 'Criar backup e importar',
+      tone: 'danger',
+    })
+    if (!confirmed) {
+      event.target.value = ''
+      return
+    }
+
+    setImportingDatabase(true)
+    setError('')
+    try {
+      const result = await importMobileDatabase(file)
+      setMessage(`${result.message}: ${result.name}`)
+      setToken(null)
+      localStorage.removeItem('smart-finance-owner-id')
+      toast.success('Banco importado', 'O aplicativo será recarregado. Entre com um usuário existente no banco importado.')
+      window.setTimeout(() => window.location.reload(), 1200)
+    } catch (err) {
+      const failure = err instanceof Error ? err.message : 'Erro ao importar banco'
+      setError(failure)
+      toast.error('Não foi possível importar o banco', failure)
+    } finally {
+      event.target.value = ''
+      setImportingDatabase(false)
     }
   }
 
@@ -208,7 +225,6 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       setTransferPreview(null)
       if (transferInputRef.current) transferInputRef.current.value = ''
       await loadCategories()
-      await loadBackups()
       toast.success('Importação concluída', result.backupCreated ? 'O backup anterior foi criado e os dados já estão disponíveis.' : summary)
     } catch (err) {
       const failure = err instanceof Error ? err.message : 'Erro ao importar os dados'
@@ -250,7 +266,7 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       </article>
 
       <article className="panel transfer-panel">
-        <h3>Importar dados do computador</h3>
+        <div className="panel-title-row"><div><span className="panel-kicker">Computador → celular</span><h3>Importar dados do computador</h3></div><span className="panel-icon" aria-hidden="true">📥</span></div>
         <p>Selecione o ZIP criado pelo botão “Exportar dados para o celular” no Smart Finance do computador.</p>
         <input ref={transferInputRef} className="transfer-file-input" type="file" accept=".zip,application/zip" onChange={selectTransferFile} />
         <button type="button" className="secondary-button" disabled={readingTransfer || importingTransfer} onClick={() => transferInputRef.current?.click()}>
@@ -293,13 +309,13 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       </article>
 
       {user.role === 'admin' && <article className="panel backup-panel">
-        <h3>Backup e banco de dados</h3>
-        <p>O aplicativo cria um backup diário. Ao exportar, o banco SQLite é baixado diretamente para a pasta Downloads do celular.</p>
+        <div className="panel-title-row"><div><span className="panel-kicker">Segurança local</span><h3>Backup e banco de dados</h3></div><span className="panel-icon" aria-hidden="true">🗄️</span></div>
+        <p>O backup diário continua automático. Exporte o banco para Downloads ou restaure um arquivo .db gerado pelo próprio aplicativo Android.</p>
+        <input ref={databaseInputRef} className="transfer-file-input" type="file" accept=".db,application/vnd.sqlite3,application/octet-stream" onChange={importDatabaseFile} />
         <div className="settings-button-row">
-          <button type="button" className="secondary-button" onClick={createBackup}>Fazer backup agora</button>
-          <button type="button" className="primary-button" onClick={exportDatabase}>Exportar banco de dados</button>
+          <button type="button" className="primary-button" onClick={exportDatabase}>Exportar banco</button>
+          <button type="button" className="secondary-button" onClick={() => databaseInputRef.current?.click()} disabled={importingDatabase}>{importingDatabase ? 'Importando banco...' : 'Importar banco'}</button>
         </div>
-        <div className="backup-list">{backups.slice(0, 5).map((item) => <div key={item.name}><span>{item.name}</span><small>{Math.round(item.size / 1024)} KB</small></div>)}</div>
       </article>}
 
       <article className="panel developer-panel">

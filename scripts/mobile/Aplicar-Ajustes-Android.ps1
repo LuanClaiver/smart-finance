@@ -164,6 +164,59 @@ public class SmartFinanceDownloadsPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void replaceDatabase(PluginCall call) {
+        String sourceUri = call.getString("sourceUri");
+        String targetUri = call.getString("targetUri");
+        if (sourceUri == null || targetUri == null) {
+            call.reject("Origem ou destino do banco não foi informado.");
+            return;
+        }
+
+        File temporaryTarget = null;
+        try (InputStream input = openSource(sourceUri)) {
+            File target = fileFromUri(targetUri);
+            File parent = target.getParentFile();
+            if (parent == null) throw new IllegalStateException("Pasta do banco não foi localizada.");
+            if (!parent.exists() && !parent.mkdirs()) throw new IllegalStateException("Não foi possível preparar a pasta do banco.");
+
+            temporaryTarget = new File(parent, target.getName() + ".importing");
+            try (OutputStream output = new FileOutputStream(temporaryTarget, false)) {
+                byte[] buffer = new byte[1024 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                output.flush();
+            }
+
+            deleteIfExists(new File(target.getAbsolutePath() + "-wal"));
+            deleteIfExists(new File(target.getAbsolutePath() + "-shm"));
+            deleteIfExists(new File(target.getAbsolutePath() + "-journal"));
+            if (target.exists() && !target.delete()) throw new IllegalStateException("O banco atual não pôde ser substituído.");
+            if (!temporaryTarget.renameTo(target)) throw new IllegalStateException("O novo banco não pôde ser ativado.");
+
+            JSObject result = new JSObject();
+            result.put("message", "Banco substituído com sucesso");
+            call.resolve(result);
+        } catch (Exception error) {
+            if (temporaryTarget != null && temporaryTarget.exists()) temporaryTarget.delete();
+            call.reject("Não foi possível importar o banco: " + error.getMessage(), error);
+        }
+    }
+
+    private File fileFromUri(String sourceUri) throws Exception {
+        Uri uri = Uri.parse(sourceUri);
+        if ("content".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalStateException("O destino do banco deve ser um arquivo interno.");
+        }
+        String path = "file".equalsIgnoreCase(uri.getScheme()) ? uri.getPath() : sourceUri;
+        if (path == null || path.trim().isEmpty()) throw new IllegalStateException("Caminho de destino inválido.");
+        return new File(path);
+    }
+
+    private void deleteIfExists(File file) {
+        if (file.exists()) file.delete();
+    }
+
     private InputStream openSource(String sourceUri) throws Exception {
         Uri uri = Uri.parse(sourceUri);
         if ("content".equalsIgnoreCase(uri.getScheme())) {
@@ -281,8 +334,23 @@ $notificationIcon = Join-Path $drawableDir 'ic_stat_smart_finance.xml'
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M4,3h16a1,1 0,0 1,1 1v16a1,1 0,0 1,-1 1H4a1,1 0,0 1,-1 -1V4a1,1 0,0 1,1 -1M7,7v10h2V7H7m4,3v7h2v-7h-2m4,-3v10h2V7h-2z" />
+        android:pathData="M5,4h14c1.1,0 2,0.9 2,2v12c0,1.1 -0.9,2 -2,2H5c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2M5,7v2h14V7H5m2,9 3,-3 2.2,1.8 4.3,-5.3 1.5,1.2 -5.6,6.8 -2.3,-1.9 -1.7,1.7L7,16z" />
 </vector>
 '@ | Set-Content -Path $notificationIcon -Encoding UTF8
+
+
+
+# Aplicar identidade visual do Smart Finance aos ícones do Android.
+$repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$logoSource = Join-Path $repoRoot 'mobile-app\resources\android'
+$resRoot = Join-Path $AndroidPath 'app\src\main\res'
+if (-not (Test-Path $logoSource)) {
+  throw "Recursos da logo Android não encontrados em: $logoSource"
+}
+Get-ChildItem -Path $logoSource -Directory | ForEach-Object {
+  $destination = Join-Path $resRoot $_.Name
+  New-Item -ItemType Directory -Path $destination -Force | Out-Null
+  Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destination -Force
+}
 
 Write-Host 'Ajustes Android aplicados, incluindo exportação para Downloads.' -ForegroundColor Green

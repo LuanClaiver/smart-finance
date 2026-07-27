@@ -1,1 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#07130d"/><path d="M32 78h14V53H32zm25 0h14V35H57zm25 0h14V22H82z" fill="#22c55e"/><path d="M28 91h72" stroke="#bbf7d0" stroke-width="8" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Finance</title>
+  <desc id="desc">Carteira digital com gráfico financeiro ascendente e ponto inteligente.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="48" x2="446" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E2A1A"/>
+      <stop offset="1" stop-color="#040B07"/>
+    </linearGradient>
+    <linearGradient id="green" x1="126" y1="122" x2="390" y2="394" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#16A34A"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <circle cx="420" cy="92" r="72" fill="#22C55E" opacity=".08"/>
+  <circle cx="92" cy="424" r="90" fill="#4ADE80" opacity=".05"/>
+  <g filter="url(#shadow)">
+    <rect x="102" y="130" width="308" height="252" rx="62" fill="#0A1710" stroke="url(#green)" stroke-width="26"/>
+    <path d="M103 207h306" stroke="#166534" stroke-width="18" opacity=".55"/>
+    <path d="M154 321l67-70 57 42 82-100" fill="none" stroke="#F0FDF4" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M323 193h37v37" fill="none" stroke="#F0FDF4" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="154" cy="321" r="16" fill="#4ADE80"/>
+    <circle cx="221" cy="251" r="16" fill="#4ADE80"/>
+    <circle cx="278" cy="293" r="16" fill="#4ADE80"/>
+  </g>
+  <g transform="translate(386 102)">
+    <circle r="28" fill="#22C55E"/>
+    <path d="M0-15V15M-15 0H15" stroke="#F0FDF4" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

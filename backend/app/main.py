@@ -58,7 +58,7 @@ app.add_middleware(
 async def disable_frontend_cache(request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/api/") or path == "/" or path.endswith("index.html") or path.startswith("/assets/") or path.startswith("/runtime-patch-"):
+    if path.startswith("/api/") or path == "/" or path.endswith("index.html") or path.startswith("/assets/") or path.startswith("/runtime-patch-") or path.startswith("/runtime-theme-"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"

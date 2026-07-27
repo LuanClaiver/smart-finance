@@ -4,8 +4,6 @@ import { api, jsonBody, setToken } from '../services/api'
 import { toast } from '../services/toast'
 import type { Category, User } from '../types'
 
-type Backup = { name: string; size: number; created_at: string }
-
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -44,20 +42,16 @@ async function waitForServerRestart(): Promise<void> {
 export default function SettingsPage({ user, onUser }: { user: User; onUser: (user: User) => void }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [backups, setBackups] = useState<Backup[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [importingDatabase, setImportingDatabase] = useState(false)
+  const [exportingTransfer, setExportingTransfer] = useState(false)
   const passwordFormRef = useRef<HTMLFormElement>(null)
   const recoveryFormRef = useRef<HTMLFormElement>(null)
   const categoryFormRef = useRef<HTMLFormElement>(null)
 
-  const loadBackups = () => user.role === 'admin'
-    ? api<Backup[]>('/backups').then(setBackups).catch(() => undefined)
-    : Promise.resolve()
   const loadCategories = () => api<Category[]>('/categories').then(setCategories).catch(() => undefined)
 
   useEffect(() => {
-    void loadBackups()
     void loadCategories()
   }, [user.role])
 
@@ -155,16 +149,21 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     }
   }
 
-  async function createBackup() {
+
+  async function exportTransferPackage() {
+    setExportingTransfer(true)
+    setError('')
     try {
-      const result = await api<{ message: string; name: string }>('/backups', { method: 'POST' })
-      setMessage(`${result.message}: ${result.name}`)
-      await loadBackups()
-      toast.success('Backup criado', result.name)
+      const blob = await api<Blob>('/transfer/export')
+      const date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      downloadBlob(blob, `smart-finance-para-celular-${date}.zip`)
+      toast.success('Pacote para o celular criado', 'Abra o Smart Finance no celular e importe o ZIP em Configurações.')
     } catch (err) {
-      const failure = err instanceof Error ? err.message : 'Erro no backup'
+      const failure = err instanceof Error ? err.message : 'Erro ao criar pacote para o celular'
       setError(failure)
-      toast.error('Não foi possível criar o backup', failure)
+      toast.error('Não foi possível exportar para o celular', failure)
+    } finally {
+      setExportingTransfer(false)
     }
   }
 
@@ -248,7 +247,19 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
         </dl>
       </article>
 
-
+      <article className="panel transfer-panel transfer-desktop-panel">
+        <div className="panel-title-row">
+          <div><span className="panel-kicker">Computador → celular</span><h3>Transferir dados para o celular</h3></div>
+          <span className="panel-icon" aria-hidden="true">📱</span>
+        </div>
+        <p>Crie um ZIP compatível com o aplicativo Android. O pacote inclui contas, cartões, categorias, rendas, despesas, empréstimos, parcelas e comprovantes do usuário selecionado.</p>
+        <ol className="transfer-steps">
+          <li>Exporte o pacote neste computador.</li>
+          <li>Envie o arquivo ZIP para o celular.</li>
+          <li>No APK, abra Configurações e toque em “Importar dados do computador”.</li>
+        </ol>
+        <button type="button" className="primary-button" onClick={exportTransferPackage} disabled={exportingTransfer}>{exportingTransfer ? 'Preparando pacote...' : 'Exportar dados para o celular'}</button>
+      </article>
 
       <article className="panel category-panel">
         <h3>Categorias</h3>
@@ -266,17 +277,15 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
       </article>
 
       {user.role === 'admin' && <article className="panel backup-panel">
-        <h3>Backup e banco de dados</h3>
-        <p>O sistema cria automaticamente um backup diário. Você também pode exportar ou importar um banco SQLite completo.</p>
+        <div className="panel-title-row"><div><span className="panel-kicker">Segurança local</span><h3>Backup e banco de dados</h3></div><span className="panel-icon" aria-hidden="true">🗄️</span></div>
+        <p>O backup diário interno continua automático. Para movimentar o banco completo, use somente as opções abaixo.</p>
         <div className="settings-button-row">
-          <button type="button" className="secondary-button" onClick={createBackup}>Fazer backup agora</button>
           <button type="button" className="primary-button" onClick={exportDatabase}>Exportar banco</button>
           <label className="secondary-button file-action-button">
             <input type="file" accept=".db,application/vnd.sqlite3,application/octet-stream" onChange={importDatabaseFile} disabled={importingDatabase} />
             {importingDatabase ? 'Importando banco...' : 'Importar banco'}
           </label>
         </div>
-        <div className="backup-list">{backups.slice(0, 5).map((item) => <div key={item.name}><span>{item.name}</span><small>{Math.round(item.size / 1024)} KB</small></div>)}</div>
       </article>}
 
       <article className="panel developer-panel">
