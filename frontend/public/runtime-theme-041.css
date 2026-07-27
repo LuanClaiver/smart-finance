@@ -1,0 +1,236 @@
+
+
+/* Smart Finance 0.4.0 — alinhamento das ações e padronização visual */
+button,
+a[href],
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+summary,
+label[for],
+label:has(input[type="file"]) {
+  cursor: pointer !important;
+}
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed !important;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button,
+.file-action-button {
+  border-color: rgb(129 140 248 / 52%) !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+  box-shadow: 0 9px 26px color-mix(in srgb, var(--accent) 24%, transparent) !important;
+}
+.primary-button:hover,
+.secondary-button:hover,
+.danger-button:hover,
+.file-action-button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 13px 34px color-mix(in srgb, var(--accent) 31%, transparent) !important;
+}
+
+.row-actions button,
+.row-actions .attachment-button,
+.table-action-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px !important;
+  border: 1px solid rgb(129 140 248 / 48%) !important;
+  border-radius: 8px;
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 20%, transparent);
+  font-weight: 700;
+  font-size: .76rem;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer !important;
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.row-actions button:hover,
+.row-actions .attachment-button:hover,
+.table-action-button:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.danger-text { color: #fff !important; }
+
+/* Compatibilidade com o frontend já compilado: quatro posições fixas na tabela de despesas. */
+.expense-row-clickable > td.row-actions {
+  display: grid !important;
+  grid-template-columns: repeat(4, 74px);
+  gap: 6px;
+  align-items: center;
+  width: 314px;
+  min-width: 314px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.expense-row-clickable > td.row-actions > button,
+.expense-row-clickable > td.row-actions > .attachment-button {
+  width: 74px;
+  min-width: 74px;
+}
+.expense-row-clickable > td.row-actions > button:nth-of-type(1) { grid-column: 1; }
+.expense-row-clickable > td.row-actions > button:nth-of-type(2) { grid-column: 2; }
+.expense-row-clickable > td.row-actions > .attachment-button { grid-column: 3; }
+.expense-row-clickable > td.row-actions > button:nth-of-type(3) { grid-column: 4; }
+.expense-row-clickable.expense-deadline-paid > td.row-actions > button:nth-of-type(1) { grid-column: 2; }
+.expense-row-clickable.expense-deadline-paid > td.row-actions > .attachment-button { grid-column: 3; }
+.expense-row-clickable.expense-deadline-paid > td.row-actions > button:nth-of-type(2) { grid-column: 4; }
+.expense-row-clickable > td.row-actions > .attachment-button { gap: 0; }
+.expense-row-clickable > td.row-actions > .attachment-button input { display: none; }
+.expense-row-clickable > td.row-actions > .attachment-button { font-size: 0; }
+.expense-row-clickable > td.row-actions > .attachment-button::after { content: "Anexar"; font-size: .76rem; }
+.expense-row-clickable > td.row-actions > button.danger-text { color: #fff !important; }
+
+/* Estrutura usada pelo código-fonte atualizado. */
+.expenses-table {
+  min-width: 1040px;
+  table-layout: fixed;
+}
+.expenses-table th:nth-child(1) { width: auto; }
+.expenses-table th:nth-child(2) { width: 140px; }
+.expenses-table th:nth-child(3) { width: 105px; }
+.expenses-table th:nth-child(4) { width: 125px; }
+.expenses-table th:nth-child(5) { width: 110px; }
+.expense-action-heading,
+.expense-action-cell {
+  width: 88px;
+  min-width: 88px;
+  padding-left: 5px;
+  padding-right: 5px;
+  text-align: center;
+  vertical-align: middle;
+}
+.expense-action-cell .table-action-button {
+  width: 78px;
+  min-width: 78px;
+}
+label.table-action-button { display: inline-flex !important; gap: 0; }
+.table-action-placeholder {
+  display: inline-flex;
+  width: 78px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  opacity: .65;
+}
+
+/* Smart Finance 0.4.0 — restaura o visual leve das ações em Rendas e Despesas */
+.incomes-table .income-row-actions button,
+.expenses-table .table-action-button,
+.expense-row-clickable > td.row-actions > button,
+.expense-row-clickable > td.row-actions > .attachment-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 6px !important;
+  border: 0 !important;
+  border-radius: 7px;
+  color: color-mix(in srgb, var(--accent) 76%, #c4b5fd) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-weight: 650;
+  font-size: .78rem;
+  line-height: 1.15;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer !important;
+  transition: color .16s ease, background-color .16s ease, transform .16s ease;
+}
+.incomes-table .income-row-actions button:hover,
+.expenses-table .table-action-button:hover,
+.expense-row-clickable > td.row-actions > button:hover,
+.expense-row-clickable > td.row-actions > .attachment-button:hover {
+  color: color-mix(in srgb, var(--accent) 42%, #ffffff) !important;
+  background: color-mix(in srgb, var(--accent) 13%, transparent) !important;
+  box-shadow: none !important;
+  filter: none;
+  transform: translateY(-1px);
+}
+.incomes-table .income-row-actions button:active,
+.expenses-table .table-action-button:active,
+.expense-row-clickable > td.row-actions > button:active,
+.expense-row-clickable > td.row-actions > .attachment-button:active {
+  transform: translateY(0);
+}
+.incomes-table .income-row-actions .danger-text,
+.expenses-table .danger-text,
+.expense-row-clickable > td.row-actions > .danger-text {
+  color: color-mix(in srgb, var(--accent) 76%, #c4b5fd) !important;
+}
+.expense-action-cell .table-action-button {
+  width: 78px;
+  min-width: 78px;
+}
+.expense-row-clickable > td.row-actions > button,
+.expense-row-clickable > td.row-actions > .attachment-button {
+  width: 74px;
+  min-width: 74px;
+}
+
+
+/* Smart Finance 0.4.0 — correção definitiva das ações de Rendas e Despesas */
+.incomes-table td.income-actions-cell .income-row-actions > button,
+.expenses-table td.expense-action-cell > button.table-action-button,
+.expenses-table td.expense-action-cell > label.table-action-button {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 28px !important;
+  padding: 4px 7px !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  border-radius: 7px !important;
+  color: color-mix(in srgb, var(--accent) 78%, #c4b5fd) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  font-weight: 650 !important;
+  font-size: .78rem !important;
+  line-height: 1.15 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition: color .16s ease, background-color .16s ease, transform .16s ease !important;
+}
+.incomes-table td.income-actions-cell .income-row-actions > button:hover,
+.expenses-table td.expense-action-cell > button.table-action-button:hover,
+.expenses-table td.expense-action-cell > label.table-action-button:hover {
+  color: color-mix(in srgb, var(--accent) 40%, #ffffff) !important;
+  background: color-mix(in srgb, var(--accent) 13%, transparent) !important;
+  background-color: color-mix(in srgb, var(--accent) 13%, transparent) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: translateY(-1px) !important;
+}
+.incomes-table td.income-actions-cell .income-row-actions > button:active,
+.expenses-table td.expense-action-cell > button.table-action-button:active,
+.expenses-table td.expense-action-cell > label.table-action-button:active {
+  transform: translateY(0) !important;
+}
+.expenses-table td.expense-action-cell > button.table-action-button,
+.expenses-table td.expense-action-cell > label.table-action-button,
+.expenses-table td.expense-action-cell > .table-action-placeholder {
+  width: 78px !important;
+  min-width: 78px !important;
+}

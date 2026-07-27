@@ -2,58 +2,76 @@
 
 Aplicativo financeiro local desenvolvido por **Luan Claiver — 2026**.
 
-## Estrutura do repositório
+## Componentes
 
-- `backend/`: API FastAPI e banco SQLite da versão Windows.
-- `frontend/`: interface React da versão Windows.
+- `backend/`: API FastAPI, SQLite, backups, relatórios e transferência de dados.
+- `frontend/`: interface React da versão para computador.
 - `mobile-app/`: aplicativo Android independente com Capacitor e SQLite.
-- `.github/workflows/`: geração e assinatura automática do APK.
-- `scripts/mobile/`: ajustes nativos aplicados durante a compilação Android.
-- `Iniciar Smart Finance.bat`: executa a versão Windows.
-- `ENVIAR REPOSITORIO COMPLETO.bat`: publica esta pasta no repositório existente.
-- `ATUALIZAR GITHUB.bat`: envia alterações futuras.
+- `branding/`: arquivos editáveis e exportações da identidade visual.
+- `scripts/mobile/`: ajustes nativos aplicados durante a geração Android.
+- `.github/workflows/`: criação da chave e compilação assinada do APK.
 
-## Banco de dados
+## Funcionalidades principais
 
-A versão Windows cria ou usa:
+- Controle de rendas, despesas, contas, cartões e empréstimos.
+- Relatórios financeiros em PDF.
+- Login, cadastro, recuperação de senha e administração de usuários.
+- Temas claro e escuro.
+- Backup diário automático.
+- Exportação e importação do banco SQLite.
+- Transferência de dados do computador para o celular por ZIP.
+- Importação móvel com opção de mesclar ou substituir os dados e backup preventivo.
+- Comprovantes anexados às despesas e leitura por câmera no Android.
+
+## Interface
+
+A tela de acesso e os fundos seguem a organização visual adotada no Smart Notes, mantendo os botões e destaques na identidade azul, índigo e roxa do Smart Finance.
+
+Nas tabelas de **Rendas** e **Despesas**, as ações permanecem alinhadas em posições fixas. Os controles usam o estilo leve em texto, sem blocos preenchidos, com realce no `hover` e cursor de mão.
+
+## Desenvolvimento da versão web
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Compilação:
+
+```bash
+npm run build
+```
+
+O backend pode ser iniciado pelo arquivo `Iniciar Smart Finance.bat` ou diretamente com as dependências de `backend/requirements.txt`.
+
+## Aplicativo Android
+
+O projeto mobile está em `mobile-app/`. A geração oficial usa o fluxo **02 - Gerar APK Android** em `.github/workflows` e aplica os recursos nativos definidos em `scripts/mobile/`.
+
+Segredos exigidos no GitHub:
+
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+- `ANDROID_KEYSTORE_BASE64`
+
+Use **01 - Gerar chave Android** apenas na configuração inicial. Preserve a mesma chave para todas as atualizações futuras.
+
+## Armazenamento
+
+Windows:
 
 ```text
 backend/data/smart_finance.db
+backend/storage/
+backend/backups/
 ```
 
-No Android, o banco fica no armazenamento privado do aplicativo. Em **Configurações**, o administrador pode exportar o banco para a pasta pública **Downloads**.
+No Android, o banco fica no armazenamento privado do aplicativo. Arquivos exportados são salvos na área pública escolhida pelo sistema.
 
-## Novidades da versão 0.4.0
+## Scripts do Windows
 
-- Correção da barra lateral no computador, com rolagem quando a altura da tela for menor.
-- Remoção da informação de usuário e senha iniciais da tela de login.
-- Simplificação de **Backup e banco de dados** para três ações: fazer backup, exportar e importar banco.
-- Remoção do painel de transferência para o celular na versão Windows.
-- Leitura de comprovantes pela câmera somente no aplicativo Android.
-- Preenchimento sugerido de valor, estabelecimento, data, forma de pagamento, categoria e descrição.
-- Foto do comprovante anexada automaticamente à nova despesa.
-- Importação do SQLite no Windows feita em duas etapas: o arquivo é validado, o servidor reinicia automaticamente e aplica o banco somente depois de liberar o bloqueio do arquivo.
-- Padronização dos botões de ação no verde do aplicativo, com cursor de mão, foco e animação de interação.
-
-A leitura por câmera sempre abre o formulário para revisão antes do lançamento ser salvo. A primeira leitura pode precisar de internet para carregar o mecanismo de reconhecimento de texto; as demais funções do aplicativo continuam locais.
-
-## Compatibilidade de importação no Android
-
-O APK ainda consegue importar pacotes de transferência gerados por versões anteriores do Smart Finance. Essa opção permanece em **Configurações** apenas para compatibilidade com arquivos já existentes.
-
-## APK pelo GitHub
-
-A geração acontece no fluxo **02 - Gerar APK Android**. Os segredos de assinatura configurados no repositório não são removidos por atualizações de código. O passo a passo completo está no arquivo `COMO ENVIAR AO GITHUB E GERAR O APK.txt`, na raiz do pacote distribuído.
-
-## Conta inicial
-
-```text
-Usuário: Admin
-Senha: 1234
-```
-
-## Próximas melhorias
-
-A avaliação das telas de referência e a sequência recomendada estão em:
-
-`MELHORIAS-AVALIADAS-0.4.0.md`
+- `Iniciar Smart Finance.bat`: executa o sistema local.
+- `ENVIAR REPOSITORIO COMPLETO.bat`: primeiro envio ao GitHub.
+- `ATUALIZAR GITHUB.bat`: publica atualizações futuras.

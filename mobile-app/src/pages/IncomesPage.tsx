@@ -206,7 +206,7 @@ export default function IncomesPage() {
           <td>{money(Number(item.amount_expected))}</td>
           <td><span className={`status ${item.status}`}>{item.status === 'received' ? 'Recebida' : 'Pendente'}</span></td>
           <td className="income-actions-cell"><div className="row-actions income-row-actions">
-            {item.status !== 'received' && <button onClick={() => markReceived(item)}>Recebido</button>}
+            {item.status !== 'received' && <button onClick={() => markReceived(item)}>Receber</button>}
             <button onClick={() => openEdit(item)}>Editar</button>
             <button className="danger-text" onClick={() => remove(item.id)}>Excluir</button>
           </div></td>

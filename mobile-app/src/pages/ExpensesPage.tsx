@@ -479,6 +479,63 @@ export default function ExpensesPage() {
     {error && <div className="form-error">{error}</div>}
     {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
     <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>
-    <section className="table-panel"><table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Tipo</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>{items.map((item) => <tr key={item.id} data-expense-id={item.id} tabIndex={0} title={`${expenseDeadlineTitle(item)}${expenseDeadlineTitle(item) ? ' • ' : ''}Clique para ver os detalhes`} className={[targetId === item.id ? 'target-row' : '', expenseDeadlineClass(item), 'expense-row-clickable'].filter(Boolean).join(' ')} onClick={() => setSelectedExpense(item)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedExpense(item) } }}><td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}{item.attachment_path && <small className="block expense-has-attachment">📎 Comprovante anexado</small>}</div></td><td>{item.due_date}</td><td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td><td>{money(Number(item.amount))}</td><td><span className={`status ${item.status}`}>{item.status === 'paid' ? 'Paga' : 'Pendente'}</span></td><td className="row-actions" onClick={(event) => event.stopPropagation()}>{item.status !== 'paid' && <button onClick={() => markPaid(item)}>Pagar</button>}<button onClick={() => openEdit(item)}>Editar</button><label className="attachment-button">{item.attachment_path ? 'Trocar comprovante' : 'Anexar'}<input type="file" accept="image/*,.pdf" onChange={(event) => uploadAttachment(item.id, event.target.files?.[0])} /></label><button className="danger-text" onClick={() => remove(item.id)}>Excluir</button></td></tr>)}</tbody></table>{items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}</section>
+    <section className="table-panel">
+      <table className="expenses-table">
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th>Vencimento</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th className="expense-action-heading">Pagar</th>
+            <th className="expense-action-heading">Editar</th>
+            <th className="expense-action-heading">Anexar</th>
+            <th className="expense-action-heading">Excluir</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => <tr
+            key={item.id}
+            data-expense-id={item.id}
+            tabIndex={0}
+            title={`${expenseDeadlineTitle(item)}${expenseDeadlineTitle(item) ? ' • ' : ''}Clique para ver os detalhes`}
+            className={[targetId === item.id ? 'target-row' : '', expenseDeadlineClass(item), 'expense-row-clickable'].filter(Boolean).join(' ')}
+            onClick={() => setSelectedExpense(item)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setSelectedExpense(item)
+              }
+            }}
+          >
+            <td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}{item.attachment_path && <small className="block expense-has-attachment">📎 Comprovante anexado</small>}</div></td>
+            <td>{item.due_date}</td>
+            <td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td>
+            <td>{money(Number(item.amount))}</td>
+            <td><span className={`status ${item.status}`}>{item.status === 'paid' ? 'Paga' : 'Pendente'}</span></td>
+            <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
+              {item.status !== 'paid'
+                ? <button type="button" className="table-action-button" onClick={() => markPaid(item)}>Pagar</button>
+                : <span className="table-action-placeholder" aria-label="Despesa já paga">—</span>}
+            </td>
+            <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="table-action-button" onClick={() => openEdit(item)}>Editar</button>
+            </td>
+            <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
+              <label className="table-action-button attachment-button" title={item.attachment_path ? 'Substituir comprovante' : 'Anexar comprovante'}>
+                Anexar
+                <input type="file" accept="image/*,.pdf" onChange={(event) => uploadAttachment(item.id, event.target.files?.[0])} />
+              </label>
+            </td>
+            <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="table-action-button" onClick={() => remove(item.id)}>Excluir</button>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+      {items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}
+    </section>
+
   </>
 }
