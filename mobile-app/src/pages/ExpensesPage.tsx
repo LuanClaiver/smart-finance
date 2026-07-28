@@ -357,6 +357,7 @@ export default function ExpensesPage() {
       setError('')
       const updated = await api<Expense>(`/expenses/${item.id}`, { method: 'PATCH', ...jsonBody(payloadFromExpense(item, { status: 'paid', paid_date: today() })) })
       setItems((current) => current.map((expense) => expense.id === updated.id ? updated : expense))
+      setSelectedExpense((current) => current?.id === updated.id ? updated : current)
       await loadExpenses(month)
       toast.success('Pagamento registrado', `${item.description} foi marcada como paga.`)
     } catch (err) {
@@ -394,7 +395,8 @@ export default function ExpensesPage() {
     const body = new FormData()
     body.append('file', file)
     try {
-      await api(`/expenses/${id}/attachment`, { method: 'POST', body })
+      const result = await api<{ message: string; path: string }>(`/expenses/${id}/attachment`, { method: 'POST', body })
+      setSelectedExpense((current) => current?.id === id ? { ...current, attachment_path: result.path } : current)
       await loadExpenses(month)
       toast.success('Comprovante anexado', file.name)
     } catch (err) {
@@ -469,7 +471,24 @@ export default function ExpensesPage() {
           {attachmentUrl && selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <a className="secondary-button attachment-open-button" href={attachmentUrl} target="_blank" rel="noreferrer">Abrir comprovante em PDF</a>}
           {attachmentUrl && !selectedExpense.attachment_path?.toLowerCase().endsWith('.pdf') && <button type="button" className="expense-attachment-image-button" onClick={() => setFullscreenAttachment(true)} aria-label="Abrir comprovante em tela cheia"><img className="expense-attachment-image" src={attachmentUrl} alt={`Comprovante de ${selectedExpense.description}`} /><small>Toque na imagem para abrir em tela cheia</small></button>}
         </section>
-        <div className="form-actions"><button className="secondary-button" onClick={() => setSelectedExpense(null)}>Fechar</button></div>
+        <div className="expense-detail-actions" aria-label="Ações da despesa">
+          {selectedExpense.status !== 'paid' && <button type="button" className="primary-button" onClick={() => void markPaid(selectedExpense)}>Pagar</button>}
+          <button type="button" className="secondary-button" onClick={() => {
+            const item = selectedExpense
+            setSelectedExpense(null)
+            openEdit(item)
+          }}>Editar</button>
+          <label className="secondary-button expense-detail-attachment-button" title={selectedExpense.attachment_path ? 'Substituir comprovante' : 'Anexar comprovante'}>
+            {selectedExpense.attachment_path ? 'Trocar anexo' : 'Anexar'}
+            <input type="file" accept="image/*,.pdf" onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              void uploadAttachment(selectedExpense.id, file)
+            }} />
+          </label>
+          <button type="button" className="danger-button" onClick={() => void remove(selectedExpense.id)}>Excluir</button>
+        </div>
+        <div className="expense-detail-close-row"><button type="button" className="secondary-button" onClick={() => setSelectedExpense(null)}>Fechar</button></div>
       </article>
     </ModalCard>}
     {fullscreenAttachment && attachmentUrl && <div className="attachment-lightbox" role="dialog" aria-modal="true" aria-label="Comprovante em tela cheia" onClick={() => setFullscreenAttachment(false)}>

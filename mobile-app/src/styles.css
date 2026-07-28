@@ -2048,3 +2048,57 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
     padding: 30px 42px;
   }
 }
+
+/* Ações no modal de detalhes da despesa no celular */
+.expense-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.expense-detail-actions > button,
+.expense-detail-actions > label {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding-inline: 12px;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.expense-detail-attachment-button {
+  position: relative;
+  overflow: hidden;
+}
+.expense-detail-attachment-button input[type='file'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.expense-detail-close-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+.expense-detail-close-row .secondary-button {
+  min-height: 42px;
+}
+@media (max-width: 620px) {
+  .expense-detail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .expense-detail-actions > button,
+  .expense-detail-actions > label {
+    min-height: 50px;
+  }
+  .expense-detail-close-row .secondary-button {
+    width: 100%;
+  }
+}
