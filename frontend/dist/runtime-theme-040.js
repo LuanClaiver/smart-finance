@@ -71,6 +71,16 @@
 
     const heading = card.querySelector('h2')
     if (heading && heading.textContent?.trim() === 'Entrar') heading.textContent = 'Entrar no sistema'
+
+    const isLogin = heading?.textContent?.trim() === 'Entrar no sistema'
+    layout.classList.add('runtime-auth-notes-style')
+    layout.classList.toggle('runtime-auth-login', Boolean(isLogin))
+
+    card.querySelectorAll('.auth-links button').forEach((button) => {
+      const label = button.textContent?.trim()
+      if (label === 'Criar conta') button.textContent = 'Criar uma nova conta'
+      if (label === 'Esqueci a senha') button.textContent = 'Esqueci minha senha'
+    })
   }
 
   function enhanceShell() {

@@ -292,9 +292,7 @@ export default function ExpensesPage() {
     const purchaseDate = usesCard
       ? String(form.get('purchase_date') || editing?.purchase_date || today())
       : String(editing?.purchase_date || scanDraft?.documentDate || today())
-    const dueDate = usesCard || Boolean(editing)
-      ? String(form.get('due_date') || editing?.due_date || today())
-      : String(paidDate || scanDraft?.documentDate || today())
+    const dueDate = String(form.get('due_date') || editing?.due_date || scanDraft?.documentDate || `${month}-10`)
     const normalizedStatus = paidDate ? 'paid' : expenseStatus
     const normalizedPaidDate = normalizedStatus === 'paid' ? (paidDate || today()) : null
     try {
@@ -419,7 +417,7 @@ export default function ExpensesPage() {
       <label>Forma de pagamento<select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option>{!fixed && <option value="credit_card">Cartão de crédito</option>}</select></label>
       <label>Conta<select name="account_id" defaultValue={editing?.account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       {!fixed ? <>
-        {(Boolean(editing) || paymentMethod === 'credit_card') && <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || scanDraft?.documentDate || `${month}-10`} required /></label>}
+        <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || scanDraft?.documentDate || `${month}-10`} required /></label>
         {paymentMethod === 'credit_card' && <>
           <label>Data da compra<input name="purchase_date" type="date" defaultValue={editing?.purchase_date || scanDraft?.documentDate || today()} required /></label>
           <label>Cartão<select name="card_id" defaultValue={editing?.card_id || ''} required><option value="">Selecione o cartão</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

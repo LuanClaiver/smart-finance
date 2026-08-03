@@ -78,7 +78,7 @@ export default function AuthPage({ onAuthenticated, theme, onToggleTheme }: Prop
     <div className="auth-glow auth-glow-left" />
     <div className="auth-glow auth-glow-right" />
 
-    <main className="auth-frame">
+    <main className={`auth-frame auth-mode-${mode}`}>
       <section className="auth-hero">
         <div className="auth-version-badge">
           <img src="/icon.svg" alt="" />
@@ -112,7 +112,7 @@ export default function AuthPage({ onAuthenticated, theme, onToggleTheme }: Prop
         <div className="auth-heading">
           <span>Acesso</span>
           <h2>{title}</h2>
-          <p>{subtitle}</p>
+          {mode !== 'login' && <p>{subtitle}</p>}
         </div>
 
         <form onSubmit={submit} autoComplete="off">

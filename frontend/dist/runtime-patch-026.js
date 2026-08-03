@@ -21,7 +21,10 @@
     try {
       const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input)
       const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
-      if (method === 'PATCH' && /\/api\/expenses\/\d+(?:\?|$)/.test(url) && typeof init.body === 'string') {
+      const isExpenseWrite =
+        (method === 'POST' && /\/api\/expenses(?:\?|$)/.test(url)) ||
+        (method === 'PATCH' && /\/api\/expenses\/\d+(?:\?|$)/.test(url))
+      if (isExpenseWrite && typeof init.body === 'string') {
         const dueInput = document.querySelector('#expense-form input[name="due_date"]')
         if (dueInput instanceof HTMLInputElement && dueInput.value) {
           const payload = JSON.parse(init.body)
@@ -37,15 +40,34 @@
     const form = document.querySelector('#expense-form')
     if (!(form instanceof HTMLFormElement)) return
     const title = form.querySelector('.form-title')?.textContent || ''
-    if (!title.includes('Editar despesa')) return
-    if (form.querySelector('input[name="due_date"]')) return
+    if (!title.includes('Despesa') && !title.includes('despesa')) return
+    // Gastos fixos usam o dia do vencimento e não precisam deste campo completo.
+    if (form.querySelector('input[name="due_day"]')) {
+      form.querySelector('.runtime-due-date-field')?.remove()
+      return
+    }
+
+    const dueInputs = [...form.querySelectorAll('input[name="due_date"]')]
+    const nativeDueInput = dueInputs.find((input) => !input.closest('.runtime-due-date-field'))
+    if (nativeDueInput) {
+      form.querySelector('.runtime-due-date-field')?.remove()
+      return
+    }
+    if (dueInputs.length) return
 
     const statusLabel = form.querySelector('select[name="status"]')?.closest('label')
     const label = document.createElement('label')
     label.className = 'runtime-due-date-field'
     label.innerHTML = '<span>Vencimento</span><input name="due_date" type="date" required>'
     const input = label.querySelector('input')
-    if (input instanceof HTMLInputElement) input.value = /^\d{4}-\d{2}-\d{2}$/.test(lastExpenseDueDate) ? lastExpenseDueDate : ''
+    if (input instanceof HTMLInputElement) {
+      const selectedMonth = document.querySelector('.month-input')
+      const fallbackMonth = selectedMonth instanceof HTMLInputElement && /^\d{4}-\d{2}$/.test(selectedMonth.value)
+        ? selectedMonth.value
+        : new Date().toISOString().slice(0, 7)
+      const editingDate = /^\d{4}-\d{2}-\d{2}$/.test(lastExpenseDueDate) ? lastExpenseDueDate : ''
+      input.value = editingDate || `${fallbackMonth}-10`
+    }
     if (statusLabel?.parentNode) statusLabel.parentNode.insertBefore(label, statusLabel)
     else form.appendChild(label)
   }

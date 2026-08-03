@@ -1914,3 +1914,187 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
   .auth-feature-grid article { min-height: 82px !important; }
   .auth-panel { padding: 30px 42px !important; }
 }
+
+
+/* Smart Finance 0.4.0 — login compacto no padrão visual do Smart Notes */
+.auth-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 4% 2%, rgb(5 150 105 / 22%), transparent 34rem),
+    radial-gradient(circle at 100% 100%, rgb(37 99 235 / 15%), transparent 34rem),
+    var(--bg);
+}
+.auth-frame.auth-mode-login {
+  width: min(1040px, 100%);
+  min-height: 620px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+}
+.auth-frame.auth-mode-register,
+.auth-frame.auth-mode-recover {
+  width: min(1120px, 100%);
+}
+.auth-frame {
+  max-height: none;
+  border-radius: 30px;
+}
+.auth-panel {
+  min-width: 0;
+  padding: clamp(28px, 4vw, 46px);
+}
+.auth-mode-login .auth-panel {
+  justify-content: center;
+}
+.auth-brand-row {
+  margin-bottom: 26px;
+}
+.auth-brand-copy img {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+.auth-heading {
+  margin-bottom: 20px;
+}
+.auth-heading h2 {
+  margin: 7px 0 0;
+  font-size: clamp(1.85rem, 3vw, 2.25rem);
+}
+.auth-panel form {
+  gap: 14px;
+}
+.auth-panel input,
+.auth-panel select,
+.auth-panel textarea {
+  min-height: 50px;
+}
+.auth-submit {
+  min-height: 50px;
+  border-radius: 12px;
+}
+.auth-links {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap !important;
+  gap: 12px;
+  margin-top: 18px;
+}
+.auth-links button {
+  min-width: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+.auth-hero {
+  padding: clamp(34px, 4.5vw, 54px);
+  gap: 34px;
+}
+.auth-hero-copy h1 {
+  font-size: clamp(2.55rem, 4.8vw, 4.45rem);
+}
+.auth-feature-grid article {
+  min-height: 88px;
+}
+
+@media (max-width: 900px) {
+  .auth-screen {
+    align-items: flex-start;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  .auth-frame,
+  .auth-frame.auth-mode-login,
+  .auth-frame.auth-mode-register,
+  .auth-frame.auth-mode-recover {
+    width: min(680px, 100%);
+    min-height: 0;
+    grid-template-columns: 1fr;
+    border-radius: 28px;
+  }
+  .auth-panel {
+    order: 1;
+    min-height: 0;
+    padding: 30px clamp(22px, 6vw, 42px) 34px;
+    justify-content: flex-start;
+  }
+  .auth-hero {
+    order: 2;
+    min-height: 0;
+    padding: 36px clamp(24px, 6vw, 42px) 40px;
+  }
+  .auth-hero-copy h1 {
+    font-size: clamp(2.35rem, 8.5vw, 3.45rem);
+  }
+  .auth-feature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 590px) {
+  .auth-screen {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(16px, env(safe-area-inset-bottom));
+  }
+  .auth-frame,
+  .auth-frame.auth-mode-login,
+  .auth-frame.auth-mode-register,
+  .auth-frame.auth-mode-recover {
+    width: 100%;
+    border-radius: 24px;
+  }
+  .auth-panel {
+    padding: 24px 20px 28px;
+  }
+  .auth-brand-row {
+    margin-bottom: 23px;
+  }
+  .auth-brand-copy img {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+  .auth-brand-copy strong {
+    font-size: 1.08rem;
+  }
+  .auth-theme-toggle {
+    width: 44px;
+    height: 44px;
+  }
+  .auth-heading h2 {
+    font-size: clamp(1.8rem, 8vw, 2.1rem);
+  }
+  .auth-panel input,
+  .auth-panel select,
+  .auth-panel textarea {
+    min-height: 52px;
+  }
+  .auth-links {
+    gap: 8px;
+  }
+  .auth-links button {
+    font-size: clamp(.73rem, 3.3vw, .84rem);
+  }
+  .auth-hero {
+    padding: 32px 24px 36px;
+    gap: 30px;
+  }
+  .auth-hero-copy h1 {
+    font-size: clamp(2.2rem, 11vw, 3rem);
+    line-height: 1.06;
+  }
+  .auth-hero-copy p {
+    font-size: .98rem;
+  }
+  .auth-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .auth-feature-grid article {
+    min-height: auto;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+}
