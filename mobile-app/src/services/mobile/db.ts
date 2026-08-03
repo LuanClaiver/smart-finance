@@ -5,6 +5,9 @@ const DATABASE_NAME = 'smart_finance_mobile'
 const DATABASE_VERSION = 1
 const sqlite = new SQLiteConnection(CapacitorSQLite)
 let connectionPromise: Promise<SQLiteDBConnection> | null = null
+// Serializa abertura e fechamento. Isso evita que uma nova conexão seja criada
+// enquanto a anterior ainda está sendo encerrada após importação/recarregamento.
+let connectionLifecycle: Promise<void> = Promise.resolve()
 
 const EXPENSE_CATEGORIES = [
   'Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Bebê',
@@ -148,30 +151,76 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error || '')
+}
+
+async function openDatabaseConnection(): Promise<SQLiteDBConnection> {
+  // Uma recarga do WebView recria o objeto JavaScript, mas a conexão nativa pode
+  // continuar viva. O plugin recomenda verificar a consistência antes de criar.
+  await sqlite.checkConnectionsConsistency().catch(() => ({ result: false }))
+
+  let database: SQLiteDBConnection
+  const existing = await sqlite.isConnection(DATABASE_NAME, false).catch(() => ({ result: false }))
+
+  if (existing.result) {
+    database = await sqlite.retrieveConnection(DATABASE_NAME, false)
+  } else {
+    try {
+      database = await sqlite.createConnection(DATABASE_NAME, false, 'no-encryption', DATABASE_VERSION, false)
+    } catch (error) {
+      // Recupera especificamente o estado em que a camada nativa informa que a
+      // conexão já existe, mas o novo contexto JavaScript ainda não a conhece.
+      const message = errorMessage(error).toLowerCase()
+      if (!message.includes('already exists') && !message.includes('já existe')) throw error
+
+      await sqlite.closeConnection(DATABASE_NAME, false).catch(() => undefined)
+      await sqlite.checkConnectionsConsistency().catch(() => ({ result: false }))
+      database = await sqlite.createConnection(DATABASE_NAME, false, 'no-encryption', DATABASE_VERSION, false)
+    }
+  }
+
+  const opened = await database.isDBOpen().catch(() => ({ result: false }))
+  if (!opened.result) await database.open()
+  await database.execute(SCHEMA)
+  await seed(database)
+  return database
+}
+
 export async function getDb(): Promise<SQLiteDBConnection> {
   if (!connectionPromise) {
-    connectionPromise = (async () => {
-      let database: SQLiteDBConnection
-      const existing = await sqlite.isConnection(DATABASE_NAME, false)
-      if (existing.result) database = await sqlite.retrieveConnection(DATABASE_NAME, false)
-      else database = await sqlite.createConnection(DATABASE_NAME, false, 'no-encryption', DATABASE_VERSION, false)
-      await database.open()
-      await database.execute(SCHEMA)
-      await seed(database)
-      return database
-    })().catch((error) => {
-      connectionPromise = null
-      throw error
-    })
+    connectionPromise = connectionLifecycle
+      .then(() => openDatabaseConnection())
+      .catch((error) => {
+        connectionPromise = null
+        throw error
+      })
   }
   return connectionPromise
 }
 
 export async function closeDb(): Promise<void> {
-  if (!connectionPromise) return
-  await connectionPromise
-  await sqlite.closeConnection(DATABASE_NAME, false)
+  const pendingConnection = connectionPromise
   connectionPromise = null
+
+  connectionLifecycle = connectionLifecycle.then(async () => {
+    const database = pendingConnection ? await pendingConnection.catch(() => null) : null
+
+    if (database) {
+      const active = await database.isTransactionActive().catch(() => ({ result: false }))
+      if (active.result) await database.rollbackTransaction().catch(() => undefined)
+    }
+
+    // closeConnection remove a conexão das camadas nativa e JavaScript. A
+    // chamada também é segura como recuperação de uma conexão nativa órfã.
+    await sqlite.closeConnection(DATABASE_NAME, false).catch(async () => {
+      if (database) await database.close().catch(() => undefined)
+    })
+    await sqlite.checkConnectionsConsistency().catch(() => ({ result: false }))
+  })
+
+  await connectionLifecycle
 }
 
 export async function seedCategories(database: SQLiteDBConnection, userId: number): Promise<void> {

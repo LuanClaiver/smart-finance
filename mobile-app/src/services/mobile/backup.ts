@@ -117,9 +117,11 @@ export async function importMobileDatabase(file: File): Promise<{ message: strin
 
   try {
     await SmartFinanceDownloads.replaceDatabase({ sourceUri: temporary.uri, targetUri: target.url })
-    await getDb()
+    // Não reabra o banco antes do reload. A conexão nativa sobreviveria à
+    // recarga do WebView e o novo contexto JavaScript tentaria criá-la outra vez.
     return { message: 'Banco importado. Entre novamente para atualizar a sessão', name: file.name }
   } catch (error) {
+    // Se a substituição falhar, restaura o funcionamento da sessão atual.
     await getDb().catch(() => undefined)
     throw error
   } finally {
