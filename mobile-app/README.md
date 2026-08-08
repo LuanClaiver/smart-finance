@@ -1,6 +1,11 @@
-# Smart Finance Mobile 0.4.3
+# Smart Finance Mobile 0.4.4
 
 Aplicativo Android local criado com React, Capacitor e SQLite.
+
+## Importação de banco SQLite
+
+Em **Configurações > Backup e banco de dados**, o APK aceita arquivos `.db` compatíveis com o Smart Finance. A versão 0.4.4 valida o banco com o SQLite nativo antes da substituição e mantém uma etapa de rollback para evitar perda do banco atual caso a troca falhe.
+
 
 ## Regra de mês das despesas
 

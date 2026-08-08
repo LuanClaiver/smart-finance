@@ -1,4 +1,11 @@
-# Smart Finance 0.4.3
+# Smart Finance 0.4.4
+
+## Alterações da versão 0.4.4
+- Corrigida a importação de bancos `.db` no APK. O seletor de arquivos agora permite escolher o banco mesmo em aparelhos que não reconhecem o MIME de SQLite.
+- Antes de substituir o banco, o APK valida o `integrity_check` do SQLite e confirma a presença das tabelas essenciais do Smart Finance.
+- A substituição do banco ficou mais segura: usa cópia temporária, sincronização em disco, arquivo de rollback e localização alternativa do banco interno quando o Android não fornece uma URL de arquivo utilizável.
+- O backup preventivo da importação passa a usar o armazenamento privado do aplicativo como alternativa quando o Android bloquear a pasta Documentos.
+- Compatibilidade validada com o arquivo `smart-finance-2026-08-08-17-41-50.db` fornecido para teste.
 
 ## Alterações da versão 0.4.3
 - Toda despesa passa a pertencer ao **mês do vencimento**, independentemente da forma de pagamento ou do mês em que foi cadastrada.

@@ -148,7 +148,7 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     const confirmed = await confirmAction({
       title: 'Importar banco completo?',
       message: 'O banco atual do aplicativo será substituído pelo arquivo selecionado.',
-      detail: 'Antes da substituição, o Smart Finance criará automaticamente um backup local de segurança. Use somente um .db exportado pelo aplicativo Android.',
+      detail: 'Antes da substituição, o Smart Finance criará automaticamente um backup local de segurança e validará o arquivo. É aceito qualquer .db compatível exportado pelo Smart Finance.',
       confirmLabel: 'Criar backup e importar',
       tone: 'danger',
     })
@@ -312,8 +312,8 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
 
       {user.role === 'admin' && <article className="panel backup-panel">
         <div className="panel-title-row"><div><span className="panel-kicker">Segurança local</span><h3>Backup e banco de dados</h3></div><span className="panel-icon" aria-hidden="true">🗄️</span></div>
-        <p>O backup diário continua automático. Exporte o banco para Downloads ou restaure um arquivo .db gerado pelo próprio aplicativo Android.</p>
-        <input ref={databaseInputRef} className="transfer-file-input" type="file" accept=".db,application/vnd.sqlite3,application/octet-stream" onChange={importDatabaseFile} />
+        <p>O backup diário continua automático. Exporte o banco para Downloads ou restaure um arquivo .db compatível gerado pelo Smart Finance.</p>
+        <input ref={databaseInputRef} className="transfer-file-input" type="file" accept="*/*" onChange={importDatabaseFile} />
         <div className="settings-button-row">
           <button type="button" className="primary-button" onClick={exportDatabase}>Exportar banco</button>
           <button type="button" className="secondary-button" onClick={() => databaseInputRef.current?.click()} disabled={importingDatabase}>{importingDatabase ? 'Importando banco...' : 'Importar banco'}</button>

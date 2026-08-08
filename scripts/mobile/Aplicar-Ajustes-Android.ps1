@@ -64,7 +64,7 @@ android {
     }
   }
   $packageFile = Join-Path (Split-Path $AndroidPath -Parent) 'package.json'
-  $versionName = '0.4.3'
+  $versionName = '0.4.4'
   if (Test-Path $packageFile) {
     try {
       $package = Get-Content $packageFile -Raw | ConvertFrom-Json
@@ -72,7 +72,7 @@ android {
         $versionName = [string]$package.version
       }
     } catch {
-      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.4.3.'
+      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.4.4.'
     }
   }
   $content = $content -replace 'versionCode\s+\d+', "versionCode $runNumber"
@@ -92,6 +92,8 @@ package com.smartfinance.app;
 import android.Manifest;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -165,41 +167,149 @@ public class SmartFinanceDownloadsPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void validateDatabase(PluginCall call) {
+        String sourceUri = call.getString("sourceUri");
+        if (sourceUri == null || sourceUri.trim().isEmpty()) {
+            call.reject("O arquivo de banco não foi informado.");
+            return;
+        }
+
+        File validationFile = null;
+        try {
+            validationFile = materializeSource(sourceUri, "smart-finance-validation.db");
+            int tables = validateDatabaseFile(validationFile);
+            JSObject result = new JSObject();
+            result.put("message", "Banco SQLite válido e compatível com o Smart Finance");
+            result.put("tables", tables);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("O banco selecionado não pôde ser validado: " + error.getMessage(), error);
+        } finally {
+            if (validationFile != null && validationFile.getName().equals("smart-finance-validation.db")) {
+                validationFile.delete();
+            }
+        }
+    }
+
+    @PluginMethod
     public void replaceDatabase(PluginCall call) {
         String sourceUri = call.getString("sourceUri");
-        String targetUri = call.getString("targetUri");
-        if (sourceUri == null || targetUri == null) {
-            call.reject("Origem ou destino do banco não foi informado.");
+        String targetUri = call.getString("targetUri", "");
+        String databaseName = call.getString("databaseName", "smart_finance_mobile");
+        if (sourceUri == null || sourceUri.trim().isEmpty()) {
+            call.reject("A origem do banco não foi informada.");
             return;
         }
 
         File temporaryTarget = null;
+        File rollbackTarget = null;
+        File target = null;
+        boolean activated = false;
         try (InputStream input = openSource(sourceUri)) {
-            File target = fileFromUri(targetUri);
+            target = resolveDatabaseTarget(targetUri, databaseName);
             File parent = target.getParentFile();
             if (parent == null) throw new IllegalStateException("Pasta do banco não foi localizada.");
             if (!parent.exists() && !parent.mkdirs()) throw new IllegalStateException("Não foi possível preparar a pasta do banco.");
 
             temporaryTarget = new File(parent, target.getName() + ".importing");
-            try (OutputStream output = new FileOutputStream(temporaryTarget, false)) {
-                byte[] buffer = new byte[1024 * 1024];
-                int read;
-                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
-                output.flush();
+            deleteIfExists(temporaryTarget);
+            try (FileOutputStream output = new FileOutputStream(temporaryTarget, false)) {
+                copy(input, output);
+                output.getFD().sync();
             }
+
+            // Só substitui o banco em uso depois que a cópia temporária passou
+            // pelo integrity_check e contém as tabelas essenciais do projeto.
+            validateDatabaseFile(temporaryTarget);
 
             deleteIfExists(new File(target.getAbsolutePath() + "-wal"));
             deleteIfExists(new File(target.getAbsolutePath() + "-shm"));
             deleteIfExists(new File(target.getAbsolutePath() + "-journal"));
-            if (target.exists() && !target.delete()) throw new IllegalStateException("O banco atual não pôde ser substituído.");
-            if (!temporaryTarget.renameTo(target)) throw new IllegalStateException("O novo banco não pôde ser ativado.");
+
+            rollbackTarget = new File(parent, target.getName() + ".before-import");
+            deleteIfExists(rollbackTarget);
+            if (target.exists() && !target.renameTo(rollbackTarget)) {
+                throw new IllegalStateException("O banco atual não pôde ser reservado para restauração.");
+            }
+
+            if (!temporaryTarget.renameTo(target)) {
+                if (rollbackTarget.exists()) rollbackTarget.renameTo(target);
+                throw new IllegalStateException("O novo banco não pôde ser ativado.");
+            }
+            activated = true;
+            deleteIfExists(rollbackTarget);
 
             JSObject result = new JSObject();
-            result.put("message", "Banco substituído com sucesso");
+            result.put("message", "Banco validado e substituído com sucesso");
             call.resolve(result);
         } catch (Exception error) {
             if (temporaryTarget != null && temporaryTarget.exists()) temporaryTarget.delete();
+            if (!activated && target != null && rollbackTarget != null && rollbackTarget.exists() && !target.exists()) {
+                rollbackTarget.renameTo(target);
+            }
             call.reject("Não foi possível importar o banco: " + error.getMessage(), error);
+        }
+    }
+
+    private File resolveDatabaseTarget(String targetUri, String databaseName) throws Exception {
+        if (targetUri != null && !targetUri.trim().isEmpty()) {
+            Uri uri = Uri.parse(targetUri);
+            if (!"content".equalsIgnoreCase(uri.getScheme())) {
+                try { return fileFromUri(targetUri); } catch (Exception ignored) { }
+            }
+        }
+
+        String cleanName = databaseName == null ? "smart_finance_mobile" : databaseName.trim();
+        if (cleanName.isEmpty()) cleanName = "smart_finance_mobile";
+        if (!cleanName.endsWith("SQLite.db")) cleanName = cleanName + "SQLite.db";
+        return getContext().getDatabasePath(cleanName);
+    }
+
+    private File materializeSource(String sourceUri, String filename) throws Exception {
+        Uri uri = Uri.parse(sourceUri);
+        if (!"content".equalsIgnoreCase(uri.getScheme())) return fileFromUri(sourceUri);
+
+        File target = new File(getContext().getCacheDir(), filename);
+        try (InputStream input = openSource(sourceUri); FileOutputStream output = new FileOutputStream(target, false)) {
+            copy(input, output);
+            output.getFD().sync();
+        }
+        return target;
+    }
+
+    private int validateDatabaseFile(File file) throws Exception {
+        if (file == null || !file.exists() || file.length() < 100) {
+            throw new IllegalStateException("arquivo SQLite vazio ou inexistente");
+        }
+
+        SQLiteDatabase database = null;
+        try {
+            database = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+            try (Cursor integrity = database.rawQuery("PRAGMA integrity_check", null)) {
+                if (!integrity.moveToFirst() || !"ok".equalsIgnoreCase(integrity.getString(0))) {
+                    throw new IllegalStateException("o integrity_check do SQLite falhou");
+                }
+            }
+
+            String[] required = new String[]{
+                "users", "categories", "accounts", "cards", "incomes",
+                "recurring_expenses", "expenses", "loans", "loan_installments"
+            };
+            int found = 0;
+            for (String table : required) {
+                try (Cursor cursor = database.rawQuery(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                    new String[]{ table }
+                )) {
+                    if (!cursor.moveToFirst()) {
+                        throw new IllegalStateException("tabela obrigatória ausente: " + table);
+                    }
+                    found++;
+                }
+            }
+            return found;
+        } finally {
+            if (database != null) database.close();
         }
     }
 

@@ -86,7 +86,7 @@ def export_transfer_package(
         "format": "smart-finance-transfer",
         "version": 1,
         "created_at": datetime.now().isoformat(),
-        "application_version": "0.4.3",
+        "application_version": "0.4.4",
         "profile": {
             "username": owner.username,
             "display_name": owner.display_name,
