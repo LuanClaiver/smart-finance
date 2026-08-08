@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 
 LEGACY_EXPENSE_MONTH_REPAIR = "0.1.9-repair-expense-reference-month"
 CARD_EXPENSE_LABEL_REPAIR = "0.2.0-normalize-card-expense-labels"
+CARD_DUE_MONTH_REPAIR = "0.4.1-card-expenses-by-due-month"
 
 
 def run_migrations(engine: Engine) -> None:
@@ -79,5 +80,22 @@ def run_migrations(engine: Engine) -> None:
             connection.exec_driver_sql(
                 "INSERT INTO app_migrations (name, applied_at) VALUES (?, ?)",
                 (CARD_EXPENSE_LABEL_REPAIR, datetime.utcnow().isoformat()),
+            )
+
+        due_month_applied = connection.exec_driver_sql(
+            "SELECT 1 FROM app_migrations WHERE name = ?",
+            (CARD_DUE_MONTH_REPAIR,),
+        ).first()
+        if not due_month_applied:
+            # A partir da 0.4.1, compras/faturas de cartão aparecem no mês do
+            # vencimento. Corrige os registros existentes sem alterar despesas
+            # que não estão vinculadas a cartão.
+            connection.exec_driver_sql(
+                "UPDATE expenses SET list_month = strftime('%Y-%m', due_date) "
+                "WHERE card_id IS NOT NULL AND due_date IS NOT NULL"
+            )
+            connection.exec_driver_sql(
+                "INSERT INTO app_migrations (name, applied_at) VALUES (?, ?)",
+                (CARD_DUE_MONTH_REPAIR, datetime.utcnow().isoformat()),
             )
 

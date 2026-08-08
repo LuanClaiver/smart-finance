@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import Card, Expense, Income, LoanInstallment, RecurringExpense
@@ -31,6 +31,18 @@ def card_billing_month(purchase_date: date, card: Card) -> str:
     return f"{base.year:04d}-{base.month:02d}"
 
 
+def expense_reference_month_filter(month: str):
+    """Mês em que a despesa deve afetar a visão financeira.
+
+    Compras/faturas de cartão pertencem ao mês do vencimento. Os demais
+    lançamentos preservam o mês de referência escolhido pelo usuário.
+    """
+    return or_(
+        and_(Expense.card_id.is_not(None), func.strftime("%Y-%m", Expense.due_date) == month),
+        and_(Expense.card_id.is_(None), func.coalesce(Expense.list_month, Expense.billing_month) == month),
+    )
+
+
 def create_expense_installments(db: Session, owner_id: int, payload, card: Card | None) -> list[Expense]:
     count = int(payload.installments or 1)
     total = Decimal(payload.amount)
@@ -45,7 +57,10 @@ def create_expense_installments(db: Session, owner_id: int, payload, card: Card 
         purchase_date = add_months(payload.purchase_date, index) if count > 1 else payload.purchase_date
         due_date = add_months(payload.due_date, index) if count > 1 else payload.due_date
         billing_month = card_billing_month(purchase_date, card) if card else f"{due_date.year:04d}-{due_date.month:02d}"
-        if payload.list_month:
+        if card:
+            # Cartão impacta o orçamento somente no mês em que a fatura vence.
+            list_month = f"{due_date.year:04d}-{due_date.month:02d}"
+        elif payload.list_month:
             reference_year, reference_month = map(int, payload.list_month.split("-"))
             reference_date = add_months(date(reference_year, reference_month, 1), index if count > 1 else 0)
             list_month = f"{reference_date.year:04d}-{reference_date.month:02d}"
@@ -118,7 +133,7 @@ def generate_recurring_expenses(db: Session, recurrence: RecurringExpense, month
 def dashboard_summary(db: Session, owner_id: int, month: str) -> dict:
     start, end = month_bounds(month)
     incomes = db.scalars(select(Income).where(Income.owner_id == owner_id, Income.expected_date.between(start, end))).all()
-    expenses = db.scalars(select(Expense).where(Expense.owner_id == owner_id, func.coalesce(Expense.list_month, Expense.billing_month) == month)).all()
+    expenses = db.scalars(select(Expense).where(Expense.owner_id == owner_id, expense_reference_month_filter(month))).all()
     installments = db.scalars(select(LoanInstallment).where(LoanInstallment.owner_id == owner_id, LoanInstallment.due_date.between(start, end))).all()
 
     income_expected = sum((Decimal(item.amount_expected) for item in incomes), Decimal("0"))
@@ -128,7 +143,7 @@ def dashboard_summary(db: Session, owner_id: int, month: str) -> dict:
 
     by_category_rows = db.execute(
         select(func.coalesce(func.sum(Expense.amount), 0), Expense.category_id)
-        .where(Expense.owner_id == owner_id, func.coalesce(Expense.list_month, Expense.billing_month) == month)
+        .where(Expense.owner_id == owner_id, expense_reference_month_filter(month))
         .group_by(Expense.category_id)
     ).all()
     by_category = [{"category_id": row[1], "total": float(row[0])} for row in by_category_rows]

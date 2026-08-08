@@ -1,4 +1,4 @@
-# Smart Finance 0.4.0
+# Smart Finance 0.4.1
 
 Aplicativo financeiro local desenvolvido por **Luan Claiver — 2026**.
 
@@ -22,6 +22,8 @@ Aplicativo financeiro local desenvolvido por **Luan Claiver — 2026**.
 - Transferência de dados do computador para o celular por ZIP.
 - Importação móvel com opção de mesclar ou substituir os dados e backup preventivo.
 - Comprovantes anexados às despesas e leitura por câmera no Android.
+- Faturas de cartão passam a impactar despesas, painel e relatórios no mês do vencimento.
+- A aba Cartões usa o mesmo mês de vencimento da aba Despesas, evitando divergência entre as telas.
 
 ## Interface
 

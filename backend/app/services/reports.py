@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import Category, Expense, User
-from .finance import dashboard_summary
+from .finance import dashboard_summary, expense_reference_month_filter
 
 
 def money(value: float) -> str:
@@ -25,7 +25,7 @@ def build_monthly_pdf(db: Session, owner_id: int, month: str) -> bytes:
     user = db.get(User, owner_id)
     summary = dashboard_summary(db, owner_id, month)
     categories = {item.id: item.name for item in db.scalars(select(Category).where(Category.owner_id == owner_id)).all()}
-    expenses = db.scalars(select(Expense).where(Expense.owner_id == owner_id, func.coalesce(Expense.list_month, Expense.billing_month) == month)).all()
+    expenses = db.scalars(select(Expense).where(Expense.owner_id == owner_id, expense_reference_month_filter(month))).all()
     by_category: dict[str, float] = {}
     fixed = variable = 0.0
     card_total = 0.0

@@ -354,3 +354,6 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
   cursor: wait !important;
 }
 
+
+/* Smart Finance 0.4.1 — cartões por mês de vencimento */
+.credit-cycle{display:flex;gap:10px;flex-wrap:wrap;font-size:.83rem;color:rgba(255,255,255,.8);margin-top:2px}.credit-cycle span{padding:5px 9px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(0,0,0,.1)}.invoice-cycle-note{margin:-2px 0 4px;padding:10px 12px;border-radius:12px;border:1px solid rgba(45,212,191,.22);background:rgba(13,148,136,.08);font-size:.86rem;color:var(--muted)}.invoice-item-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.invoice-item-copy strong{font-weight:600}.invoice-item-copy small{color:var(--muted);font-size:.78rem}

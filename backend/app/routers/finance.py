@@ -15,7 +15,15 @@ from ..dependencies import get_current_user, resolve_owner_id
 from ..models import Account, Card, Category, Expense, Income, Loan, LoanInstallment, RecurringExpense, User
 from ..schemas import AccountInput, CardInput, CategoryInput, ExpenseInput, IncomeInput, LoanInput, LoanInstallmentInput, LoanUpdateInput, RecurringExpenseInput
 from ..services.alerts import get_alerts
-from ..services.finance import add_months, card_billing_month, create_expense_installments, dashboard_summary, generate_recurring_expenses, month_bounds
+from ..services.finance import (
+    add_months,
+    card_billing_month,
+    create_expense_installments,
+    dashboard_summary,
+    expense_reference_month_filter,
+    generate_recurring_expenses,
+    month_bounds,
+)
 
 router = APIRouter(prefix="/api", tags=["Financeiro"])
 
@@ -133,14 +141,18 @@ def card_invoice(card_id: int, month: str, owner_id: int = Depends(resolve_owner
     card = _owned(db, Card, card_id, owner_id)
     items = db.scalars(
         select(Expense)
-        .where(Expense.owner_id == owner_id, Expense.card_id == card.id, Expense.billing_month == month)
-        .order_by(Expense.purchase_date, Expense.created_at)
+        .where(
+            Expense.owner_id == owner_id,
+            Expense.card_id == card.id,
+            func.strftime("%Y-%m", Expense.due_date) == month,
+        )
+        .order_by(Expense.due_date, Expense.purchase_date, Expense.created_at)
     ).all()
     available_months = list(db.scalars(
-        select(Expense.billing_month)
+        select(func.strftime("%Y-%m", Expense.due_date))
         .where(Expense.owner_id == owner_id, Expense.card_id == card.id)
         .distinct()
-        .order_by(Expense.billing_month)
+        .order_by(func.strftime("%Y-%m", Expense.due_date))
     ).all())
     return {
         "card": card,
@@ -156,7 +168,13 @@ def card_invoice(card_id: int, month: str, owner_id: int = Depends(resolve_owner
 @router.post("/cards/{card_id}/invoice/pay")
 def pay_card_invoice(card_id: int, month: str, account_id: int | None = None, owner_id: int = Depends(resolve_owner_id), db: Session = Depends(get_db)):
     _owned(db, Card, card_id, owner_id)
-    items = db.scalars(select(Expense).where(Expense.owner_id == owner_id, Expense.card_id == card_id, Expense.billing_month == month)).all()
+    items = db.scalars(
+        select(Expense).where(
+            Expense.owner_id == owner_id,
+            Expense.card_id == card_id,
+            func.strftime("%Y-%m", Expense.due_date) == month,
+        )
+    ).all()
     if not items:
         raise HTTPException(status_code=404, detail="Fatura sem lançamentos")
     today = date.today()
@@ -204,7 +222,11 @@ def delete_income(item_id: int, owner_id: int = Depends(resolve_owner_id), db: S
 
 @router.get("/expenses")
 def list_expenses(month: str, owner_id: int = Depends(resolve_owner_id), db: Session = Depends(get_db)):
-    return db.scalars(select(Expense).where(Expense.owner_id == owner_id, func.coalesce(Expense.list_month, Expense.billing_month) == month).order_by(Expense.created_at.desc(), Expense.due_date.desc())).all()
+    return db.scalars(
+        select(Expense)
+        .where(Expense.owner_id == owner_id, expense_reference_month_filter(month))
+        .order_by(Expense.due_date.desc(), Expense.created_at.desc())
+    ).all()
 
 
 @router.post("/expenses")
@@ -230,7 +252,9 @@ def update_expense(item_id: int, payload: ExpenseInput, owner_id: int = Depends(
     for key, value in data.items():
         setattr(item, key, value)
     item.billing_month = card_billing_month(payload.purchase_date, card) if card else f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
-    if payload.list_month:
+    if card:
+        item.list_month = f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
+    elif payload.list_month:
         item.list_month = payload.list_month
     elif not item.list_month:
         item.list_month = item.billing_month

@@ -2098,3 +2098,18 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
     align-items: center;
   }
 }
+
+
+/* Smart Finance 0.4.1 — cartões por mês de vencimento */
+.credit-cycle { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: -6px; }
+.credit-cycle span { padding: 5px 9px; border: 1px solid rgb(255 255 255 / 18%); border-radius: 999px; background: rgb(0 0 0 / 14%); font-size: .75rem; }
+.invoice-cycle-note { margin: 14px 0 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.invoice-item-copy { min-width: 0; display: grid; gap: 3px; }
+.invoice-item-copy strong { font-size: .94rem; }
+.invoice-item-copy small { color: var(--muted); font-size: .76rem; }
+.invoice-items > div > b { white-space: nowrap; align-self: center; }
+@media (max-width: 590px) {
+  .credit-cycle { gap: 6px; }
+  .invoice-title { align-items: flex-start; }
+  .invoice-items > div { align-items: flex-start; }
+}

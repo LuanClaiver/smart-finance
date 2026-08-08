@@ -22,6 +22,11 @@ function monthLabel(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1))
 }
 
+function dateLabel(value: string): string {
+  const [year, month, day] = value.split('-')
+  return year && month && day ? `${day}/${month}/${year}` : value
+}
+
 export default function CardsPage() {
   const [items, setItems] = useState<Card[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -90,19 +95,10 @@ export default function CardsPage() {
     return api<Invoice>(`/cards/${id}/invoice?month=${encodeURIComponent(selectedMonth)}`)
   }
 
-  async function viewInvoice(id: number, selectedMonth = month, allowFallback = true) {
+  async function viewInvoice(id: number, selectedMonth = month) {
     try {
       setError('')
-      let data = await fetchInvoice(id, selectedMonth)
-      if (allowFallback && data.items.length === 0 && data.available_months.length > 0) {
-        const nextMonth = data.available_months.find((value) => value >= selectedMonth)
-          || data.available_months[data.available_months.length - 1]
-        if (nextMonth && nextMonth !== selectedMonth) {
-          data = await fetchInvoice(id, nextMonth)
-          setMonth(nextMonth)
-          toast.info('Fatura localizada', `A fatura com lançamentos foi aberta em ${monthLabel(nextMonth)}.`)
-        }
-      }
+      const data = await fetchInvoice(id, selectedMonth)
       setInvoice(data)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao abrir fatura'
@@ -115,7 +111,7 @@ export default function CardsPage() {
     if (!invoice) return
     try {
       await api(`/cards/${invoice.card.id}/invoice/pay?month=${invoice.month}${invoice.card.payment_account_id ? `&account_id=${invoice.card.payment_account_id}` : ''}`, { method: 'POST' })
-      await viewInvoice(invoice.card.id, invoice.month, false)
+      await viewInvoice(invoice.card.id, invoice.month)
       toast.success('Fatura paga', `${invoice.card.name} • ${monthLabel(invoice.month)}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao pagar fatura'
@@ -148,11 +144,11 @@ export default function CardsPage() {
 
   function changeMonth(value: string) {
     setMonth(value)
-    if (invoice) void viewInvoice(invoice.card.id, value, false)
+    if (invoice) void viewInvoice(invoice.card.id, value)
   }
 
   return <>
-    <PageHeader title="Cartões" subtitle="Faturas e compras parceladas por mês de cobrança" actions={<>
+    <PageHeader title="Cartões" subtitle="Faturas agrupadas pelo mês de vencimento" actions={<>
       <input className="month-input" type="month" value={month} onChange={(event) => changeMonth(event.target.value)} />
       <button className="primary-button compact" onClick={openNew}>+ Novo cartão</button>
     </>} />
@@ -177,13 +173,15 @@ export default function CardsPage() {
     <section className="cards-grid">{items.length === 0 ? <EmptyState text="Nenhum cartão cadastrado." /> : items.map((item) => <article className="credit-card" key={item.id} style={{ '--card-color': item.color } as React.CSSProperties}>
       <div><small>{item.bank || 'Cartão'}</small><strong>{item.name}</strong></div><span>{item.brand || 'Crédito'}</span>
       <div className="credit-meta"><small>Limite</small><b>{money(Number(item.credit_limit))}</b></div>
+      <div className="credit-cycle"><span>Fecha dia {item.closing_day}</span><span>Vence dia {item.due_day}</span></div>
       <div className="card-actions"><button onClick={() => viewInvoice(item.id)}>Ver fatura</button><button onClick={() => openEdit(item)}>Editar</button><button onClick={() => remove(item.id)}>Excluir</button></div>
     </article>)}</section>
 
     {invoice && <ModalCard onClose={() => setInvoice(null)} label={`Fatura ${invoice.card.name}`} wide>
       <section className="panel invoice-panel modal-invoice">
-        <div className="invoice-title"><div><h3>Fatura {invoice.card.name}</h3><p>{monthLabel(invoice.month)} • {invoice.items.length} compra(s)</p></div><div><strong>{money(invoice.total)}</strong><span className={`status ${invoice.status === 'paid' ? 'paid' : 'pending'}`}>{invoice.status === 'paid' ? 'Paga' : 'Aberta'}</span></div></div>
-        <div className="invoice-items">{invoice.items.length === 0 ? <p className="empty">Nenhuma compra nesta fatura.</p> : invoice.items.map((item) => <div key={item.id}><span>{item.description}{item.installment_number ? ` • ${item.installment_number}/${item.total_installments}` : ''}</span><b>{money(Number(item.amount))}</b></div>)}</div>
+        <div className="invoice-title"><div><h3>Fatura {invoice.card.name}</h3><p>Vencimento em {monthLabel(invoice.month)} • {invoice.items.length} lançamento(s)</p></div><div><strong>{money(invoice.total)}</strong><span className={`status ${invoice.status === 'paid' ? 'paid' : 'pending'}`}>{invoice.status === 'paid' ? 'Paga' : 'Aberta'}</span></div></div>
+        <div className="invoice-cycle-note">Fecha dia {invoice.card.closing_day} • Vence dia {invoice.card.due_day}. Esta tela usa o mês do vencimento para ficar igual à aba Despesas.</div>
+        <div className="invoice-items">{invoice.items.length === 0 ? <p className="empty">Nenhuma fatura ou compra deste cartão vence neste mês.</p> : invoice.items.map((item) => <div key={item.id}><span className="invoice-item-copy"><strong>{item.description}{item.installment_number ? ` • ${item.installment_number}/${item.total_installments}` : ''}</strong><small>Vence em {dateLabel(item.due_date)} • Compra em {dateLabel(item.purchase_date)}</small></span><b>{money(Number(item.amount))}</b></div>)}</div>
         <div className="invoice-actions"><button type="button" className="secondary-button" onClick={() => setInvoice(null)}>Fechar</button>{invoice.items.length > 0 && invoice.status !== 'paid' && <button className="primary-button compact" onClick={payInvoice}>Pagar fatura</button>}</div>
       </section>
     </ModalCard>}

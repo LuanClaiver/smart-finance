@@ -76,13 +76,15 @@ function normalizeCard(row: Record<string, unknown>): Card {
 }
 
 function normalizeExpense(row: Record<string, unknown>): Expense {
+  const dueDate = String(row.due_date)
+  const cardId = row.card_id == null ? undefined : Number(row.card_id)
   return {
     id: Number(row.id), description: String(row.description), amount: asNumber(row.amount), purchase_date: String(row.purchase_date),
-    due_date: String(row.due_date), paid_date: row.paid_date ? String(row.paid_date) : undefined,
+    due_date: dueDate, paid_date: row.paid_date ? String(row.paid_date) : undefined,
     category_id: row.category_id == null ? undefined : Number(row.category_id), expense_type: String(row.expense_type),
     payment_method: String(row.payment_method), merchant: String(row.merchant || ''), notes: String(row.notes || ''), status: String(row.status),
-    account_id: row.account_id == null ? undefined : Number(row.account_id), card_id: row.card_id == null ? undefined : Number(row.card_id),
-    billing_month: String(row.billing_month), list_month: String(row.list_month || row.billing_month),
+    account_id: row.account_id == null ? undefined : Number(row.account_id), card_id: cardId,
+    billing_month: String(row.billing_month), list_month: cardId ? monthOf(dueDate) : String(row.list_month || row.billing_month),
     installment_number: row.installment_number == null ? undefined : Number(row.installment_number),
     total_installments: row.total_installments == null ? undefined : Number(row.total_installments),
     attachment_path: row.attachment_path ? String(row.attachment_path) : undefined,
@@ -144,7 +146,7 @@ async function getCard(id: number, owner: number): Promise<Card> {
 
 async function dashboard(owner: number, month: string): Promise<Dashboard> {
   const incomes = (await queryRows<Record<string, unknown>>('SELECT * FROM incomes WHERE owner_id = ? AND substr(expected_date, 1, 7) = ?', [owner, month])).map(normalizeIncome)
-  const expenses = (await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id = ? AND COALESCE(list_month, billing_month) = ?', [owner, month])).map(normalizeExpense)
+  const expenses = (await queryRows<Record<string, unknown>>(`SELECT * FROM expenses WHERE owner_id = ? AND ((card_id IS NOT NULL AND substr(due_date, 1, 7) = ?) OR (card_id IS NULL AND COALESCE(list_month, billing_month) = ?))`, [owner, month, month])).map(normalizeExpense)
   const installments = (await queryRows<Record<string, unknown>>('SELECT * FROM loan_installments WHERE owner_id = ? AND substr(due_date, 1, 7) = ?', [owner, month])).map(normalizeInstallment)
   const incomeExpected = incomes.reduce((sum, item) => sum + item.amount_expected, 0)
   const incomeReceived = incomes.filter((item) => item.status === 'received').reduce((sum, item) => sum + item.amount_received, 0)
@@ -175,7 +177,7 @@ async function alerts(owner: number): Promise<AlertItem[]> {
     const days = daysBetween(today, item.due_date)
     result.push({ type: 'expense', level: days < 0 ? 'danger' : days <= 3 ? 'warning' : 'info', title: item.description,
       message: days < 0 ? 'vencida' : days === 0 ? 'vence hoje' : `vence em ${days} dia(s)`, date: item.due_date, amount: item.amount,
-      target_id: item.id, target_page: 'expenses', month: item.list_month || item.billing_month })
+      target_id: item.id, target_page: 'expenses', month: item.card_id ? monthOf(item.due_date) : item.list_month || item.billing_month })
   }
   const installmentRows = await queryRows<Record<string, unknown>>(
     `SELECT li.*, l.creditor FROM loan_installments li JOIN loans l ON l.id = li.loan_id
@@ -215,7 +217,7 @@ async function createExpenses(owner: number, payload: Record<string, unknown>): 
       const purchase = count > 1 ? addMonths(purchaseDate, index) : purchaseDate
       const due = count > 1 ? addMonths(dueDate, index) : dueDate
       const billingMonth = card ? cardBillingMonth(purchase, card) : monthOf(due)
-      const listMonth = payload.list_month ? monthOf(addMonths(`${String(payload.list_month)}-01`, count > 1 ? index : 0)) : billingMonth
+      const listMonth = card ? monthOf(due) : payload.list_month ? monthOf(addMonths(`${String(payload.list_month)}-01`, count > 1 ? index : 0)) : billingMonth
       const inserted = await database.run(
         `INSERT INTO expenses(owner_id, description, amount, purchase_date, due_date, paid_date, category_id, expense_type,
           payment_method, merchant, notes, status, account_id, card_id, installment_group, installment_number, total_installments,
@@ -243,7 +245,7 @@ async function updateExpense(owner: number, id: number, payload: Record<string, 
   const status = paidDateInput || payload.status === 'paid' ? 'paid' : 'pending'
   const paidDate = status === 'paid' ? paidDateInput || todayLocal() : null
   const billingMonth = card ? cardBillingMonth(purchaseDate, card) : monthOf(dueDate)
-  const listMonth = String(payload.list_month || existing.list_month || billingMonth)
+  const listMonth = card ? monthOf(dueDate) : String(payload.list_month || existing.list_month || billingMonth)
   await execute(
     `UPDATE expenses SET description=?, amount=?, purchase_date=?, due_date=?, paid_date=?, category_id=?, expense_type=?, payment_method=?, merchant=?,
      notes=?, status=?, account_id=?, card_id=?, billing_month=?, list_month=? WHERE id=? AND owner_id=?`,
@@ -444,16 +446,16 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
       const card = await getCard(id, owner)
       const month = String(url.searchParams.get('month') || monthOf(todayLocal()))
       if (parts[3] === 'pay' && method === 'POST') {
-        const rows = await queryRows<Record<string, unknown>>('SELECT id FROM expenses WHERE owner_id=? AND card_id=? AND billing_month=?', [owner, id, month])
+        const rows = await queryRows<Record<string, unknown>>('SELECT id FROM expenses WHERE owner_id=? AND card_id=? AND substr(due_date,1,7)=?', [owner, id, month])
         if (!rows.length) throw new MobileApiError('Fatura sem lançamentos', 404)
-        await execute('UPDATE expenses SET status=?,paid_date=?,account_id=COALESCE(?,account_id) WHERE owner_id=? AND card_id=? AND billing_month=?', ['paid', todayLocal(), url.searchParams.get('account_id') ? Number(url.searchParams.get('account_id')) : null, owner, id, month])
+        await execute('UPDATE expenses SET status=?,paid_date=?,account_id=COALESCE(?,account_id) WHERE owner_id=? AND card_id=? AND substr(due_date,1,7)=?', ['paid', todayLocal(), url.searchParams.get('account_id') ? Number(url.searchParams.get('account_id')) : null, owner, id, month])
         return { message: 'Fatura marcada como paga', items: rows.length } as T
       }
       if (method === 'GET') {
-        const itemRows = await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id=? AND card_id=? AND billing_month=? ORDER BY purchase_date,created_at', [owner, id, month])
+        const itemRows = await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id=? AND card_id=? AND substr(due_date,1,7)=? ORDER BY due_date,purchase_date,created_at', [owner, id, month])
         const items = itemRows.map(normalizeExpense)
-        const available = await queryRows<{ billing_month: string }>('SELECT DISTINCT billing_month FROM expenses WHERE owner_id=? AND card_id=? ORDER BY billing_month', [owner, id])
-        return { card, month, requested_month: month, total: items.reduce((sum, item) => sum + item.amount, 0), status: items.length && items.every((item) => item.status === 'paid') ? 'paid' : 'open', items, available_months: available.map((item) => item.billing_month) } as T
+        const available = await queryRows<{ due_month: string }>('SELECT DISTINCT substr(due_date,1,7) AS due_month FROM expenses WHERE owner_id=? AND card_id=? ORDER BY due_month', [owner, id])
+        return { card, month, requested_month: month, total: items.reduce((sum, item) => sum + item.amount, 0), status: items.length && items.every((item) => item.status === 'paid') ? 'paid' : 'open', items, available_months: available.map((item) => item.due_month) } as T
       }
     }
     await owned('cards', id, owner)
@@ -474,7 +476,7 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
   }
 
   // Despesas
-  if (url.pathname === '/expenses' && method === 'GET') return (await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id=? AND COALESCE(list_month,billing_month)=? ORDER BY created_at DESC,due_date DESC', [owner, String(url.searchParams.get('month'))])).map(normalizeExpense) as T
+  if (url.pathname === '/expenses' && method === 'GET') { const selectedMonth = String(url.searchParams.get('month')); return (await queryRows<Record<string, unknown>>(`SELECT * FROM expenses WHERE owner_id=? AND ((card_id IS NOT NULL AND substr(due_date,1,7)=?) OR (card_id IS NULL AND COALESCE(list_month,billing_month)=?)) ORDER BY due_date DESC,created_at DESC`, [owner, selectedMonth, selectedMonth])).map(normalizeExpense) as T }
   if (url.pathname === '/expenses' && method === 'POST') return await createExpenses(owner, payload) as T
   if (url.pathname === '/recurring-expenses' && method === 'POST') return await createRecurrence(owner, payload) as T
   if (parts[0] === 'expenses' && parts[1]) {
@@ -505,7 +507,7 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
     const user = await requireUser(context)
     const dashboardData = await dashboard(owner, month)
     const incomes = (await queryRows<Record<string, unknown>>('SELECT * FROM incomes WHERE owner_id=? AND substr(expected_date,1,7)=?', [owner, month])).map(normalizeIncome)
-    const expenses = (await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id=? AND COALESCE(list_month,billing_month)=?', [owner, month])).map(normalizeExpense)
+    const expenses = (await queryRows<Record<string, unknown>>(`SELECT * FROM expenses WHERE owner_id=? AND ((card_id IS NOT NULL AND substr(due_date,1,7)=?) OR (card_id IS NULL AND COALESCE(list_month,billing_month)=?))`, [owner, month, month])).map(normalizeExpense)
     const loans = await normalizeLoanRows(await queryRows<Record<string, unknown>>('SELECT * FROM loans WHERE owner_id=?', [owner]))
     const categories = (await queryRows<Record<string, unknown>>('SELECT * FROM categories WHERE owner_id=?', [owner])).map(normalizeCategory)
     const ownerUser = Number(user.id) === owner ? user : await queryOne<UserRow>('SELECT * FROM users WHERE id=?', [owner])

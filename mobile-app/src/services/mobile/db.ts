@@ -184,6 +184,16 @@ async function openDatabaseConnection(): Promise<SQLiteDBConnection> {
   const opened = await database.isDBOpen().catch(() => ({ result: false }))
   if (!opened.result) await database.open()
   await database.execute(SCHEMA)
+  // 0.4.1: cartão passa a afetar o mês do vencimento da fatura. A correção é
+  // idempotente para também normalizar bancos importados de versões anteriores.
+  await database.execute(`
+    UPDATE expenses
+       SET list_month = substr(due_date, 1, 7)
+     WHERE card_id IS NOT NULL
+       AND due_date IS NOT NULL
+       AND list_month <> substr(due_date, 1, 7);
+    INSERT OR REPLACE INTO app_meta(key, value) VALUES ('migration_0_4_1_card_due_month', 'applied');
+  `)
   await seed(database)
   return database
 }

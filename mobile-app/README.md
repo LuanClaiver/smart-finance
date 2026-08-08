@@ -1,4 +1,4 @@
-# Smart Finance Mobile 0.4.0
+# Smart Finance Mobile 0.4.1
 
 Aplicativo Android local criado com React, Capacitor e SQLite.
 

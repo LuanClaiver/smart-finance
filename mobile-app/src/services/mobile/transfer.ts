@@ -597,7 +597,8 @@ async function importExpenses(
 
     if (!id) {
       const billingMonth = text(row.billing_month).trim() || dueDate.slice(0, 7)
-      const listMonth = text(row.list_month).trim() || billingMonth
+      const importedCardId = mappedId(maps.cards, row.card_id)
+      const listMonth = importedCardId ? dueDate.slice(0, 7) : text(row.list_month).trim() || billingMonth
 
       id = await execute(
         `INSERT INTO expenses(
@@ -623,7 +624,7 @@ async function importExpenses(
           text(row.notes),
           text(row.status, 'pending') || 'pending',
           mappedId(maps.accounts, row.account_id),
-          mappedId(maps.cards, row.card_id),
+          importedCardId,
           null,
           mappedId(maps.recurringExpenses, row.recurrence_id),
           nullableText(row.installment_group),

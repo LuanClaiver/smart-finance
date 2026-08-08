@@ -263,12 +263,12 @@ export default function ExpensesPage() {
           category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: editing.expense_type || 'variable',
           payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
           status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
-          card_id: cardId, installments: 1, list_month: editing.list_month || month,
+          card_id: cardId, installments: 1, list_month: cardId ? dueDate.slice(0, 7) : editing.list_month || month,
         }) })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
         closeForm()
         await loadExpenses(month)
-        toast.success('Despesa atualizada', `${updated.description} foi atualizada e permanece na lista de ${month}.`)
+        toast.success('Despesa atualizada', updated.card_id && updated.list_month !== month ? `${updated.description} agora aparece em ${monthLabel(updated.list_month)}, mês do vencimento.` : `${updated.description} foi atualizada.`)
       } else if (fixed) {
         const result = await api<{ generated: number }>('/recurring-expenses', { method: 'POST', ...jsonBody({
           description: form.get('description'), amount: Number(form.get('amount')), due_day: Number(form.get('due_day')),
@@ -287,17 +287,18 @@ export default function ExpensesPage() {
           category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: 'variable',
           payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
           status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
-          card_id: cardId, installments: Number(form.get('installments') || 1), list_month: month,
+          card_id: cardId, installments: Number(form.get('installments') || 1), list_month: cardId ? dueDate.slice(0, 7) : month,
         }) })
         const visibleNow = created.filter((item) => item.list_month === month)
         setItems((current) => mergeExpenses(current, visibleNow))
         closeForm()
         await loadExpenses(month)
         const first = created[0]
-        const invoiceMessage = first?.card_id && first.billing_month !== month
-          ? ` A cobrança do cartão ficou na fatura ${first.billing_month}.`
+        const targetMonth = first?.list_month || month
+        const invoiceMessage = first?.card_id && targetMonth !== month
+          ? ` Como é cartão, o lançamento aparece em ${monthLabel(targetMonth)}, mês do vencimento.`
           : ''
-        toast.success('Despesa salva', `${created.length} lançamento(s) adicionado(s). O primeiro já está na lista de ${month}.${invoiceMessage}`)
+        toast.success('Despesa salva', `${created.length} lançamento(s) adicionado(s).${invoiceMessage || ` O lançamento aparece em ${monthLabel(targetMonth)}.`}`)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar'
