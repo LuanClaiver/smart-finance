@@ -1,6 +1,6 @@
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { createMobileBackup } from './backup'
-import { execute, inTransaction, queryOne, seedCategories } from './db'
+import { execute, inTransaction, queryOne, queryRows, seedCategories } from './db'
 
 type Row = Record<string, unknown>
 
@@ -20,9 +20,14 @@ type TransferPayload = {
     cards?: Row[]
     incomes?: Row[]
     recurring_expenses?: Row[]
+    recurring_incomes?: Row[]
     expenses?: Row[]
     loans?: Row[]
     loan_installments?: Row[]
+    budgets?: Row[]
+    goals?: Row[]
+    internal_transfers?: Row[]
+    import_rules?: Row[]
   }
 }
 
@@ -36,6 +41,7 @@ export type TransferPreview = {
   cards: number
   incomes: number
   recurringExpenses: number
+  recurringIncomes: number
   expenses: number
   loans: number
   loanInstallments: number
@@ -50,9 +56,14 @@ export type TransferImportResult = {
     cards: number
     incomes: number
     recurringExpenses: number
+    recurringIncomes: number
     expenses: number
     loans: number
     loanInstallments: number
+    budgets: number
+    goals: number
+    transfers: number
+    rules: number
     attachments: number
   }
   skippedAttachments: number
@@ -74,6 +85,7 @@ type IdMaps = {
   accounts: Map<number, number>
   cards: Map<number, number>
   recurringExpenses: Map<number, number>
+  recurringIncomes: Map<number, number>
   loans: Map<number, number>
 }
 
@@ -256,6 +268,7 @@ export async function previewTransferPackage(file: File): Promise<TransferPrevie
     cards: rows(payload, 'cards').length,
     incomes: rows(payload, 'incomes').length,
     recurringExpenses: rows(payload, 'recurring_expenses').length,
+    recurringIncomes: rows(payload, 'recurring_incomes').length,
     expenses: expenses.length,
     loans: rows(payload, 'loans').length,
     loanInstallments: rows(payload, 'loan_installments').length,
@@ -264,10 +277,15 @@ export async function previewTransferPackage(file: File): Promise<TransferPrevie
 }
 
 async function clearOwnerData(ownerId: number): Promise<void> {
+  await execute('DELETE FROM budgets WHERE owner_id = ?', [ownerId])
+  await execute('DELETE FROM goals WHERE owner_id = ?', [ownerId])
+  await execute('DELETE FROM internal_transfers WHERE owner_id = ?', [ownerId])
+  await execute('DELETE FROM import_rules WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM loan_installments WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM loans WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM expenses WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM recurring_expenses WHERE owner_id = ?', [ownerId])
+  await execute('DELETE FROM recurring_incomes WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM incomes WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM cards WHERE owner_id = ?', [ownerId])
   await execute('DELETE FROM accounts WHERE owner_id = ?', [ownerId])
@@ -405,6 +423,35 @@ async function importCards(
   return count
 }
 
+async function importRecurringIncomes(
+  payload: TransferPayload,
+  ownerId: number,
+  mode: TransferImportMode,
+  maps: IdMaps,
+): Promise<number> {
+  let count = 0
+  for (const row of rows(payload, 'recurring_incomes')) {
+    const description = text(row.description).trim()
+    const startMonth = text(row.start_month).trim()
+    const expectedDay = numberValue(row.expected_day, 1)
+    if (!description || !startMonth) continue
+    let id = mode === 'merge' ? await findId(
+      `SELECT id FROM recurring_incomes WHERE owner_id=? AND description=? AND start_month=? AND expected_day=? LIMIT 1`,
+      [ownerId, description, startMonth, expectedDay],
+    ) : 0
+    if (!id) {
+      id = await execute(
+        `INSERT INTO recurring_incomes(owner_id,description,amount,expected_day,category_id,account_id,notes,start_month,end_month,active)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [ownerId, description, numberValue(row.amount), expectedDay, mappedId(maps.categories,row.category_id), mappedId(maps.accounts,row.account_id), text(row.notes), startMonth, nullableText(row.end_month), booleanInteger(row.active)],
+      )
+      count += 1
+    }
+    remember(maps.recurringIncomes, row, id)
+  }
+  return count
+}
+
 async function importIncomes(
   payload: TransferPayload,
   ownerId: number,
@@ -419,13 +466,13 @@ async function importIncomes(
     const expectedAmount = numberValue(row.amount_expected)
     if (!description || !expectedDate) continue
 
+    const externalId = nullableText(row.external_id)
     const existing = mode === 'merge'
       ? await findId(
-          `SELECT id FROM incomes
-           WHERE owner_id = ? AND description = ? AND expected_date = ?
-             AND amount_expected = ?
-           LIMIT 1`,
-          [ownerId, description, expectedDate, expectedAmount],
+          externalId
+            ? `SELECT id FROM incomes WHERE owner_id = ? AND external_id = ? LIMIT 1`
+            : `SELECT id FROM incomes WHERE owner_id = ? AND description = ? AND expected_date = ? AND amount_expected = ? LIMIT 1`,
+          externalId ? [ownerId, externalId] : [ownerId, description, expectedDate, expectedAmount],
         )
       : 0
 
@@ -434,8 +481,8 @@ async function importIncomes(
     await execute(
       `INSERT INTO incomes(
          owner_id, description, amount_expected, amount_received, expected_date,
-         received_date, status, account_id, category_id, notes, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         received_date, status, account_id, category_id, notes, recurrence_id, external_id, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         ownerId,
         description,
@@ -447,6 +494,8 @@ async function importIncomes(
         mappedId(maps.accounts, row.account_id),
         mappedId(maps.categories, row.category_id),
         text(row.notes),
+        mappedId(maps.recurringIncomes, row.recurrence_id),
+        externalId,
         text(row.created_at, new Date().toISOString()),
       ],
     )
@@ -577,28 +626,20 @@ async function importExpenses(
     const amount = numberValue(row.amount)
     if (!description || !dueDate || !purchaseDate) continue
 
+    const externalId = nullableText(row.external_id)
     let id = mode === 'merge'
       ? await findId(
-          `SELECT id FROM expenses
-           WHERE owner_id = ? AND description = ? AND purchase_date = ?
-             AND due_date = ? AND amount = ?
-             AND COALESCE(installment_number, 0) = ?
-           LIMIT 1`,
-          [
-            ownerId,
-            description,
-            purchaseDate,
-            dueDate,
-            amount,
-            numberValue(row.installment_number),
-          ],
+          externalId
+            ? `SELECT id FROM expenses WHERE owner_id = ? AND external_id = ? LIMIT 1`
+            : `SELECT id FROM expenses WHERE owner_id = ? AND description = ? AND purchase_date = ? AND due_date = ? AND amount = ? AND COALESCE(installment_number, 0) = ? LIMIT 1`,
+          externalId ? [ownerId, externalId] : [ownerId, description, purchaseDate, dueDate, amount, numberValue(row.installment_number)],
         )
       : 0
 
     if (!id) {
       const billingMonth = text(row.billing_month).trim() || dueDate.slice(0, 7)
       const importedCardId = mappedId(maps.cards, row.card_id)
-      const listMonth = importedCardId ? dueDate.slice(0, 7) : text(row.list_month).trim() || billingMonth
+      const listMonth = dueDate.slice(0, 7)
 
       id = await execute(
         `INSERT INTO expenses(
@@ -606,9 +647,9 @@ async function importExpenses(
            category_id, expense_type, payment_method, merchant, notes, status,
            account_id, card_id, attachment_path, recurrence_id, installment_group,
            installment_number, total_installments, billing_month, list_month,
-           created_at
+           external_id, created_at
          ) VALUES (
-           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          )`,
         [
           ownerId,
@@ -632,6 +673,7 @@ async function importExpenses(
           optionalNumber(row.total_installments),
           billingMonth,
           listMonth,
+          externalId,
           text(row.created_at, new Date().toISOString()),
         ],
       )
@@ -695,6 +737,43 @@ async function importLoanInstallments(
   return count
 }
 
+async function importAdvancedData(
+  payload: TransferPayload,
+  ownerId: number,
+  mode: TransferImportMode,
+  maps: IdMaps,
+): Promise<{ budgets: number; goals: number; transfers: number; rules: number }> {
+  const result = { budgets: 0, goals: 0, transfers: 0, rules: 0 }
+  for (const row of rows(payload, 'budgets')) {
+    const categoryId = mappedId(maps.categories, row.category_id)
+    const month = text(row.month).trim()
+    if (!categoryId || !month) continue
+    const existing = mode === 'merge' ? await findId('SELECT id FROM budgets WHERE owner_id=? AND month=? AND category_id=? LIMIT 1', [ownerId, month, categoryId]) : 0
+    if (existing) await execute('UPDATE budgets SET limit_amount=? WHERE id=? AND owner_id=?', [numberValue(row.limit_amount), existing, ownerId])
+    else { await execute('INSERT INTO budgets(owner_id,month,category_id,limit_amount,created_at) VALUES (?,?,?,?,?)', [ownerId, month, categoryId, numberValue(row.limit_amount), text(row.created_at,new Date().toISOString())]); result.budgets += 1 }
+  }
+  for (const row of rows(payload, 'goals')) {
+    const name = text(row.name).trim(); if (!name) continue
+    const existing = mode === 'merge' ? await findId('SELECT id FROM goals WHERE owner_id=? AND name=? COLLATE NOCASE LIMIT 1', [ownerId, name]) : 0
+    if (existing) await execute('UPDATE goals SET target_amount=?,current_amount=?,target_date=?,status=? WHERE id=? AND owner_id=?', [numberValue(row.target_amount),numberValue(row.current_amount),nullableText(row.target_date),text(row.status,'active'),existing,ownerId])
+    else { await execute('INSERT INTO goals(owner_id,name,target_amount,current_amount,target_date,status,created_at) VALUES (?,?,?,?,?,?,?)', [ownerId,name,numberValue(row.target_amount),numberValue(row.current_amount),nullableText(row.target_date),text(row.status,'active'),text(row.created_at,new Date().toISOString())]); result.goals += 1 }
+  }
+  for (const row of rows(payload, 'internal_transfers')) {
+    const fromId=mappedId(maps.accounts,row.from_account_id); const toId=mappedId(maps.accounts,row.to_account_id); const transferDate=text(row.transfer_date).trim(); const amount=numberValue(row.amount)
+    if (!fromId || !toId || fromId===toId || !transferDate) continue
+    const existing = mode === 'merge' ? await findId('SELECT id FROM internal_transfers WHERE owner_id=? AND from_account_id=? AND to_account_id=? AND transfer_date=? AND amount=? LIMIT 1',[ownerId,fromId,toId,transferDate,amount]) : 0
+    if (!existing) { await execute('INSERT INTO internal_transfers(owner_id,from_account_id,to_account_id,amount,transfer_date,notes,created_at) VALUES (?,?,?,?,?,?,?)',[ownerId,fromId,toId,amount,transferDate,text(row.notes),text(row.created_at,new Date().toISOString())]); result.transfers += 1 }
+  }
+  for (const row of rows(payload, 'import_rules')) {
+    const pattern=text(row.pattern).trim(); const kind=text(row.kind,'expense')||'expense'; if(!pattern) continue
+    const existing=mode==='merge'?await findId('SELECT id FROM import_rules WHERE owner_id=? AND pattern=? COLLATE NOCASE AND kind=? LIMIT 1',[ownerId,pattern,kind]):0
+    const categoryId=mappedId(maps.categories,row.category_id); const paymentMethod=text(row.payment_method,'pix')||'pix'
+    if(existing) await execute('UPDATE import_rules SET category_id=?,payment_method=? WHERE id=? AND owner_id=?',[categoryId,paymentMethod,existing,ownerId])
+    else { await execute('INSERT INTO import_rules(owner_id,pattern,kind,category_id,payment_method,created_at) VALUES (?,?,?,?,?,?)',[ownerId,pattern,kind,categoryId,paymentMethod,text(row.created_at,new Date().toISOString())]); result.rules += 1 }
+  }
+  return result
+}
+
 async function writeAttachments(
   files: Map<string, Uint8Array>,
   ownerId: number,
@@ -752,6 +831,7 @@ export async function importTransferPackage(
     accounts: new Map(),
     cards: new Map(),
     recurringExpenses: new Map(),
+    recurringIncomes: new Map(),
     loans: new Map(),
   }
 
@@ -762,9 +842,14 @@ export async function importTransferPackage(
     cards: 0,
     incomes: 0,
     recurringExpenses: 0,
+    recurringIncomes: 0,
     expenses: 0,
     loans: 0,
     loanInstallments: 0,
+    budgets: 0,
+    goals: 0,
+    transfers: 0,
+    rules: 0,
     attachments: 0,
   }
 
@@ -774,11 +859,17 @@ export async function importTransferPackage(
     imported.categories = await importCategories(payload, ownerId, mode, maps)
     imported.accounts = await importAccounts(payload, ownerId, mode, maps)
     imported.cards = await importCards(payload, ownerId, mode, maps)
+    imported.recurringIncomes = await importRecurringIncomes(payload, ownerId, mode, maps)
     imported.incomes = await importIncomes(payload, ownerId, mode, maps)
     imported.recurringExpenses = await importRecurringExpenses(payload, ownerId, mode, maps)
     imported.loans = await importLoans(payload, ownerId, mode, maps)
     imported.expenses = await importExpenses(payload, ownerId, mode, maps, attachmentJobs)
     imported.loanInstallments = await importLoanInstallments(payload, ownerId, mode, maps)
+    const advanced = await importAdvancedData(payload, ownerId, mode, maps)
+    imported.budgets = advanced.budgets
+    imported.goals = advanced.goals
+    imported.transfers = advanced.transfers
+    imported.rules = advanced.rules
 
     if (rows(payload, 'categories').length === 0) {
       await seedCategories(database, ownerId)
@@ -794,4 +885,35 @@ export async function importTransferPackage(
     imported,
     skippedAttachments: attachments.skipped,
   }
+}
+
+const SYNC_TABLES = [
+  'categories', 'accounts', 'cards', 'incomes', 'recurring_incomes',
+  'recurring_expenses', 'expenses', 'loans', 'loan_installments',
+  'budgets', 'goals', 'internal_transfers', 'import_rules',
+] as const
+
+export async function exportSyncPackage(ownerId: number): Promise<{ message: string; name: string }> {
+  if (!ownerId) throw new Error('Não foi possível identificar o usuário para sincronização.')
+  const data: Record<string, Row[]> = {}
+  for (const table of SYNC_TABLES) {
+    data[table] = await queryRows<Row>(`SELECT * FROM ${table} WHERE owner_id = ?`, [ownerId])
+  }
+  const createdAt = new Date().toISOString()
+  const filename = `smart-finance-sync-${createdAt.slice(0, 10)}-${createdAt.slice(11, 19).replace(/:/g, '-')}.sfsync`
+  const content = JSON.stringify({ format: 'smart-finance-sync', version: 1, application_version: '0.5.3', created_at: createdAt, data }, null, 2)
+  const { Encoding } = await import('@capacitor/filesystem')
+  const { Share } = await import('@capacitor/share')
+  let write: { uri: string }
+  let location = 'Documentos/SmartFinance'
+  try {
+    write = await Filesystem.writeFile({ path: `SmartFinance/${filename}`, data: content, directory: Directory.Documents, encoding: Encoding.UTF8, recursive: true })
+  } catch {
+    write = await Filesystem.writeFile({ path: `sync/${filename}`, data: content, directory: Directory.Data, encoding: Encoding.UTF8, recursive: true })
+    location = 'armazenamento interno do aplicativo'
+  }
+  try {
+    await Share.share({ title: 'Sincronização Smart Finance', text: 'Pacote de sincronização do Smart Finance para importar no computador.', url: write.uri, dialogTitle: 'Enviar pacote para o computador' })
+  } catch { /* pacote já foi salvo */ }
+  return { message: `Pacote salvo em ${location}`, name: filename }
 }

@@ -16,6 +16,9 @@ if (Test-Path $manifest) {
   if ($content -notmatch 'android.permission.POST_NOTIFICATIONS') {
     $permissions += '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
   }
+  if ($content -notmatch 'android.permission.USE_BIOMETRIC') {
+    $permissions += '    <uses-permission android:name="android.permission.USE_BIOMETRIC" />'
+  }
   if ($content -notmatch 'android.permission.INTERNET') {
     $permissions += '    <uses-permission android:name="android.permission.INTERNET" />'
   }
@@ -64,7 +67,7 @@ android {
     }
   }
   $packageFile = Join-Path (Split-Path $AndroidPath -Parent) 'package.json'
-  $versionName = '0.4.4'
+  $versionName = '0.5.3'
   if (Test-Path $packageFile) {
     try {
       $package = Get-Content $packageFile -Raw | ConvertFrom-Json
@@ -72,11 +75,15 @@ android {
         $versionName = [string]$package.version
       }
     } catch {
-      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.4.4.'
+      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.5.3.'
     }
   }
   $content = $content -replace 'versionCode\s+\d+', "versionCode $runNumber"
   $content = $content -replace 'versionName\s+"[^"]+"', "versionName `"$versionName`""
+
+  if ($content -notmatch 'androidx.biometric:biometric') {
+    $content = [regex]::Replace($content, 'dependencies\s*\{', 'dependencies {' + $newLine + '    implementation "androidx.biometric:biometric:1.1.0"', 1)
+  }
 
   Set-Content -Path $buildGradle -Value $content -Encoding UTF8
 }
@@ -417,6 +424,70 @@ public class SmartFinanceDownloadsPlugin extends Plugin {
 }
 '@ | Set-Content -Path $downloadPlugin -Encoding UTF8
 
+$biometricPlugin = Join-Path $javaDir 'SmartFinanceBiometricPlugin.java'
+@'
+package com.smartfinance.app;
+
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.util.concurrent.Executor;
+
+@CapacitorPlugin(name = "SmartFinanceBiometric")
+public class SmartFinanceBiometricPlugin extends Plugin {
+    @PluginMethod
+    public void isAvailable(PluginCall call) {
+        int result = BiometricManager.from(getContext()).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
+        JSObject response = new JSObject();
+        response.put("available", result == BiometricManager.BIOMETRIC_SUCCESS);
+        response.put("label", "Biometria do aparelho");
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void authenticate(PluginCall call) {
+        int available = BiometricManager.from(getContext()).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
+        if (available != BiometricManager.BIOMETRIC_SUCCESS) {
+            call.reject("Biometria não disponível ou não cadastrada no aparelho.");
+            return;
+        }
+        FragmentActivity activity = (FragmentActivity) getActivity();
+        Executor executor = ContextCompat.getMainExecutor(getContext());
+        activity.runOnUiThread(() -> {
+            BiometricPrompt prompt = new BiometricPrompt(activity, executor, new BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    JSObject response = new JSObject(); response.put("success", true); call.resolve(response);
+                }
+                @Override
+                public void onAuthenticationError(int errorCode, CharSequence errString) {
+                    super.onAuthenticationError(errorCode, errString);
+                    if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON || errorCode == BiometricPrompt.ERROR_USER_CANCELED || errorCode == BiometricPrompt.ERROR_CANCELED) {
+                        JSObject response = new JSObject(); response.put("success", false); call.resolve(response);
+                    } else call.reject("Falha na biometria: " + errString);
+                }
+                @Override
+                public void onAuthenticationFailed() { super.onAuthenticationFailed(); }
+            });
+            String title = call.getString("title", "Desbloquear Smart Finance");
+            String subtitle = call.getString("subtitle", "Confirme sua identidade");
+            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title).setSubtitle(subtitle).setNegativeButtonText("Usar PIN").setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK).build();
+            prompt.authenticate(info);
+        });
+    }
+}
+'@ | Set-Content -Path $biometricPlugin -Encoding UTF8
+
 $mainActivity = Join-Path $javaDir 'MainActivity.java'
 @'
 package com.smartfinance.app;
@@ -428,6 +499,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SmartFinanceDownloadsPlugin.class);
+        registerPlugin(SmartFinanceBiometricPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
@@ -463,4 +535,4 @@ Get-ChildItem -Path $logoSource -Directory | ForEach-Object {
   Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destination -Force
 }
 
-Write-Host 'Ajustes Android aplicados, incluindo exportação para Downloads.' -ForegroundColor Green
+Write-Host 'Ajustes Android aplicados, incluindo exportação, biometria e proteção local.' -ForegroundColor Green

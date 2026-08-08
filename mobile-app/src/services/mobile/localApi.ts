@@ -14,6 +14,7 @@ import {
 import { execute, getDb, inTransaction, queryOne, queryRows, seedCategories } from './db'
 import { hashSecret } from './crypto'
 import { createMonthlyPdf } from './report'
+import { handleAdvancedLocal } from './advancedLocal'
 import { addMonths, asNumber, boolInt, daysBetween, monthOf, parseJsonBody, randomId, safeDate, todayLocal } from './utils'
 
 export class MobileApiError extends Error {
@@ -88,6 +89,9 @@ function normalizeExpense(row: Record<string, unknown>): Expense {
     installment_number: row.installment_number == null ? undefined : Number(row.installment_number),
     total_installments: row.total_installments == null ? undefined : Number(row.total_installments),
     attachment_path: row.attachment_path ? String(row.attachment_path) : undefined,
+    recurrence_id: row.recurrence_id == null ? undefined : Number(row.recurrence_id),
+    installment_group: row.installment_group ? String(row.installment_group) : undefined,
+    external_id: row.external_id ? String(row.external_id) : undefined,
   }
 }
 
@@ -97,11 +101,12 @@ function normalizeIncome(row: Record<string, unknown>): Income {
     expected_date: String(row.expected_date), received_date: row.received_date ? String(row.received_date) : undefined,
     status: String(row.status), account_id: row.account_id == null ? undefined : Number(row.account_id),
     category_id: row.category_id == null ? undefined : Number(row.category_id), notes: String(row.notes || ''),
+    recurrence_id: row.recurrence_id == null ? undefined : Number(row.recurrence_id), external_id: row.external_id ? String(row.external_id) : undefined,
   }
 }
 
 function normalizeAccount(row: Record<string, unknown>): Account {
-  return { id: Number(row.id), name: String(row.name), account_type: String(row.account_type), initial_balance: asNumber(row.initial_balance), is_active: Boolean(row.is_active) }
+  return { id: Number(row.id), name: String(row.name), account_type: String(row.account_type), initial_balance: asNumber(row.initial_balance), reported_balance: row.reported_balance == null ? null : asNumber(row.reported_balance), balance_checked_at: row.balance_checked_at ? String(row.balance_checked_at) : null, is_active: Boolean(row.is_active) }
 }
 
 function normalizeCategory(row: Record<string, unknown>): Category {
@@ -140,27 +145,66 @@ function cardBillingMonth(purchaseDate: string, card: Card): string {
   return monthOf(purchaseDate)
 }
 
+function cardDueDate(purchaseDate: string, card: Card): string {
+  let cycle = `${purchaseDate.slice(0, 7)}-01`
+  if (Number(purchaseDate.slice(8, 10)) > card.closing_day) cycle = addMonths(cycle, 1)
+  if (card.due_day <= card.closing_day) cycle = addMonths(cycle, 1)
+  const [year, month] = monthOf(cycle).split('-').map(Number)
+  return safeDate(year, month, card.due_day)
+}
+
 async function getCard(id: number, owner: number): Promise<Card> {
   return normalizeCard(await owned('cards', id, owner))
 }
 
 async function dashboard(owner: number, month: string): Promise<Dashboard> {
   const incomes = (await queryRows<Record<string, unknown>>('SELECT * FROM incomes WHERE owner_id = ? AND substr(expected_date, 1, 7) = ?', [owner, month])).map(normalizeIncome)
-  const expenses = (await queryRows<Record<string, unknown>>(`SELECT * FROM expenses WHERE owner_id = ? AND substr(due_date, 1, 7) = ?`, [owner, month])).map(normalizeExpense)
+  const expenses = (await queryRows<Record<string, unknown>>('SELECT * FROM expenses WHERE owner_id = ? AND substr(due_date, 1, 7) = ?', [owner, month])).map(normalizeExpense)
   const installments = (await queryRows<Record<string, unknown>>('SELECT * FROM loan_installments WHERE owner_id = ? AND substr(due_date, 1, 7) = ?', [owner, month])).map(normalizeInstallment)
   const incomeExpected = incomes.reduce((sum, item) => sum + item.amount_expected, 0)
   const incomeReceived = incomes.filter((item) => item.status === 'received').reduce((sum, item) => sum + item.amount_received, 0)
   const expenseExpected = expenses.reduce((sum, item) => sum + item.amount, 0) + installments.reduce((sum, item) => sum + item.amount, 0)
   const expensePaid = expenses.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.amount, 0)
     + installments.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.amount, 0)
-  const categoryMap = new Map<number | null, number>()
-  expenses.forEach((item) => categoryMap.set(item.category_id || null, (categoryMap.get(item.category_id || null) || 0) + item.amount))
+  const categoryRows = await queryRows<{ category_id: number | null; category_name: string | null; total: number }>(
+    `SELECT e.category_id, COALESCE(c.name,'Sem categoria') category_name, COALESCE(SUM(e.amount),0) total
+     FROM expenses e LEFT JOIN categories c ON c.id=e.category_id
+     WHERE e.owner_id=? AND substr(e.due_date,1,7)=? GROUP BY e.category_id,c.name ORDER BY total DESC`, [owner, month],
+  )
+  const previousMonth = monthOf(addMonths(`${month}-01`, -1))
+  const prevIncome = asNumber((await queryOne<Record<string, unknown>>('SELECT COALESCE(SUM(amount_expected),0) total FROM incomes WHERE owner_id=? AND substr(expected_date,1,7)=?', [owner, previousMonth]))?.total)
+  const prevExpenseBase = asNumber((await queryOne<Record<string, unknown>>('SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE owner_id=? AND substr(due_date,1,7)=?', [owner, previousMonth]))?.total)
+  const prevLoan = asNumber((await queryOne<Record<string, unknown>>('SELECT COALESCE(SUM(amount),0) total FROM loan_installments WHERE owner_id=? AND substr(due_date,1,7)=?', [owner, previousMonth]))?.total)
+  const variation = (current: number, previous: number) => previous === 0 ? null : ((current - previous) / Math.abs(previous)) * 100
+  const nextDue = await queryOne<Record<string, unknown>>("SELECT id,description,due_date,amount FROM expenses WHERE owner_id=? AND status<>'paid' AND due_date>=? ORDER BY due_date LIMIT 1", [owner, todayLocal()])
+  const cardTotal = expenses.filter((item) => item.card_id).reduce((sum, item) => sum + item.amount, 0)
+  let budgetOverCount = 0
+  const budgets = await queryRows<Record<string, unknown>>('SELECT category_id,limit_amount FROM budgets WHERE owner_id=? AND month=?', [owner, month])
+  for (const budget of budgets) {
+    const spent = categoryRows.find((row) => Number(row.category_id || 0) === Number(budget.category_id || 0))?.total || 0
+    if (asNumber(spent) > asNumber(budget.limit_amount)) budgetOverCount += 1
+  }
+  const commitment = incomeExpected > 0 ? expenseExpected / incomeExpected * 100 : 0
+  const balanceExpected = incomeExpected - expenseExpected
+  const healthMessage = incomeExpected === 0 && expenseExpected === 0
+    ? 'Ainda não há lançamentos previstos para este mês.'
+    : balanceExpected < 0
+      ? `O mês está projetado no negativo em ${Math.abs(balanceExpected).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+      : commitment >= 90
+        ? `Você já comprometeu ${commitment.toFixed(0)}% da renda prevista do mês.`
+        : `Após os compromissos previstos, restam ${balanceExpected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
   return {
     month, income_expected: incomeExpected, income_received: incomeReceived, expense_expected: expenseExpected, expense_paid: expensePaid,
-    balance_expected: incomeExpected - expenseExpected, balance_real: incomeReceived - expensePaid,
+    balance_expected: balanceExpected, balance_real: incomeReceived - expensePaid,
     pending_expenses: expenses.filter((item) => item.status !== 'paid').length + installments.filter((item) => item.status !== 'paid').length,
     entries: incomes.length + expenses.length + installments.length,
-    by_category: [...categoryMap.entries()].map(([category_id, total]) => ({ category_id, total })),
+    by_category: categoryRows.map((row) => ({ category_id: row.category_id, category_name: row.category_name || 'Sem categoria', total: asNumber(row.total) })),
+    commitment_percent: commitment,
+    income_change_percent: variation(incomeExpected, prevIncome),
+    expense_change_percent: variation(expenseExpected, prevExpenseBase + prevLoan),
+    largest_category: categoryRows.length ? { category_id: categoryRows[0].category_id, category_name: categoryRows[0].category_name || 'Sem categoria', total: asNumber(categoryRows[0].total) } : null,
+    next_due: nextDue ? { id: Number(nextDue.id), description: String(nextDue.description), date: String(nextDue.due_date), amount: asNumber(nextDue.amount) } : null,
+    card_total: cardTotal, budget_over_count: budgetOverCount, health_message: healthMessage,
   }
 }
 
@@ -192,6 +236,29 @@ async function alerts(owner: number): Promise<AlertItem[]> {
   const incomeRows = (await queryRows<Record<string, unknown>>('SELECT * FROM incomes WHERE owner_id = ? AND status <> ? AND expected_date <= ?', [owner, 'received', today])).map(normalizeIncome)
   incomeRows.forEach((item) => result.push({ type: 'income', level: 'warning', title: item.description, message: 'renda prevista ainda não recebida',
     date: item.expected_date, amount: item.amount_expected, target_id: item.id, target_page: 'incomes', month: monthOf(item.expected_date) }))
+  const cardRows = (await queryRows<Record<string, unknown>>('SELECT * FROM cards WHERE owner_id=? AND is_active=1', [owner])).map(normalizeCard)
+  for (const card of cardRows) {
+    const now = new Date(`${today}T12:00:00`)
+    let year = now.getFullYear(); let monthIndex = now.getMonth()
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
+    let closing = new Date(year, monthIndex, Math.min(card.closing_day, daysInMonth), 12)
+    if (closing < now) {
+      monthIndex += 1
+      if (monthIndex > 11) { monthIndex = 0; year += 1 }
+      closing = new Date(year, monthIndex, Math.min(card.closing_day, new Date(year, monthIndex + 1, 0).getDate()), 12)
+    }
+    const closingText = `${closing.getFullYear()}-${String(closing.getMonth() + 1).padStart(2, '0')}-${String(closing.getDate()).padStart(2, '0')}`
+    const days = daysBetween(today, closingText)
+    if (days <= 7) result.push({ type: 'card_closing', level: days <= 1 ? 'warning' : 'info', title: card.name,
+      message: days === 0 ? 'fatura fecha hoje' : `fatura fecha em ${days} dia(s)`, date: closingText, amount: 0, target_id: card.id, target_page: 'cards', month: monthOf(closingText) })
+  }
+  const currentMonth = monthOf(today)
+  const budgetRows = await queryRows<Record<string, unknown>>(`SELECT b.id,b.category_id,b.limit_amount,c.name category_name,COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.owner_id=b.owner_id AND e.category_id=b.category_id AND substr(e.due_date,1,7)=b.month),0) spent FROM budgets b JOIN categories c ON c.id=b.category_id WHERE b.owner_id=? AND b.month=?`, [owner, currentMonth])
+  for (const budget of budgetRows) {
+    const limit = asNumber(budget.limit_amount); const spent = asNumber(budget.spent); const percent = limit > 0 ? spent / limit * 100 : 0
+    if (percent >= 90) result.push({ type: 'budget', level: percent >= 100 ? 'danger' : 'warning', title: `Orçamento • ${budget.category_name}`,
+      message: `${percent.toFixed(0)}% do limite mensal utilizado`, date: today, amount: spent, target_id: Number(budget.id), target_page: 'planning', month: currentMonth })
+  }
   const priority = { danger: 0, warning: 1, info: 2 }
   return result.sort((a, b) => a.date.localeCompare(b.date) || priority[a.level] - priority[b.level])
 }
@@ -202,9 +269,10 @@ async function createExpenses(owner: number, payload: Record<string, unknown>): 
   if (total <= 0) throw new MobileApiError('Informe um valor maior que zero.')
   const count = Math.max(1, Math.min(360, Number(payload.installments || 1)))
   const purchaseDate = String(payload.purchase_date || todayLocal())
-  const dueDate = String(payload.due_date || purchaseDate)
+  const requestedDueDate = String(payload.due_date || purchaseDate)
   const cardId = payload.card_id ? Number(payload.card_id) : null
   const card = cardId ? await getCard(cardId, owner) : null
+  const dueDate = card && payload.auto_card_due !== false ? cardDueDate(purchaseDate, card) : requestedDueDate
   const base = Math.floor((total / count) * 100) / 100
   const amounts = Array.from({ length: count }, () => base)
   amounts[count - 1] = Math.round((total - base * (count - 1)) * 100) / 100
@@ -214,18 +282,19 @@ async function createExpenses(owner: number, payload: Record<string, unknown>): 
   const created: Expense[] = []
   await inTransaction(async (database) => {
     for (let index = 0; index < count; index += 1) {
-      const purchase = count > 1 ? addMonths(purchaseDate, index) : purchaseDate
+      const purchase = purchaseDate
       const due = count > 1 ? addMonths(dueDate, index) : dueDate
       const billingMonth = card ? cardBillingMonth(purchase, card) : monthOf(due)
       const listMonth = monthOf(due)
       const inserted = await database.run(
         `INSERT INTO expenses(owner_id, description, amount, purchase_date, due_date, paid_date, category_id, expense_type,
           payment_method, merchant, notes, status, account_id, card_id, installment_group, installment_number, total_installments,
-          billing_month, list_month, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          billing_month, list_month, external_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [owner, description, amounts[index], purchase, due, paidDate, payload.category_id || null, String(payload.expense_type || 'variable'),
-          String(payload.payment_method || 'pix'), String(payload.merchant || ''), String(payload.notes || ''), normalizedStatus,
-          payload.account_id || null, cardId, group, count > 1 ? index + 1 : null, count > 1 ? count : null, billingMonth, listMonth, new Date().toISOString()],
+          String(cardId ? 'credit_card' : payload.payment_method || 'pix'), String(payload.merchant || ''), String(payload.notes || ''), normalizedStatus,
+          payload.account_id || null, cardId, group, count > 1 ? index + 1 : null, count > 1 ? count : null, billingMonth, listMonth,
+          payload.external_id ? `${String(payload.external_id)}${count > 1 ? `:${index + 1}` : ''}` : `expense-${randomId()}`, new Date().toISOString()],
         false,
       )
       const row = await database.query('SELECT * FROM expenses WHERE id = ?', [inserted.changes?.lastId])
@@ -238,9 +307,10 @@ async function createExpenses(owner: number, payload: Record<string, unknown>): 
 async function updateExpense(owner: number, id: number, payload: Record<string, unknown>): Promise<Expense> {
   const existing = await owned('expenses', id, owner)
   const purchaseDate = String(payload.purchase_date || existing.purchase_date)
-  const dueDate = String(payload.due_date || existing.due_date)
+  const requestedDueDate = String(payload.due_date || existing.due_date)
   const cardId = payload.card_id ? Number(payload.card_id) : null
   const card = cardId ? await getCard(cardId, owner) : null
+  const dueDate = card && payload.auto_card_due !== false ? cardDueDate(purchaseDate, card) : requestedDueDate
   const paidDateInput = payload.paid_date ? String(payload.paid_date) : null
   const status = paidDateInput || payload.status === 'paid' ? 'paid' : 'pending'
   const paidDate = status === 'paid' ? paidDateInput || todayLocal() : null
@@ -259,7 +329,7 @@ async function updateExpense(owner: number, id: number, payload: Record<string, 
 async function createRecurrence(owner: number, payload: Record<string, unknown>): Promise<{ generated: number }> {
   const startMonth = String(payload.start_month)
   const dueDay = Number(payload.due_day)
-  const months = Math.max(1, Math.min(120, Number(payload.months_to_generate || 12)))
+  const months = Math.max(1, Math.min(120, Number(payload.months_to_generate || 24)))
   const recurrenceId = await execute(
     `INSERT INTO recurring_expenses(owner_id, description, amount, due_day, category_id, payment_method, merchant, account_id, start_month, end_month, active)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
@@ -275,10 +345,10 @@ async function createRecurrence(owner: number, payload: Record<string, unknown>)
     const due = safeDate(year, number, dueDay)
     await execute(
       `INSERT INTO expenses(owner_id, description, amount, purchase_date, due_date, category_id, expense_type, payment_method, merchant,
-       status, account_id, recurrence_id, billing_month, list_month, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'fixed', ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+       status, account_id, recurrence_id, billing_month, list_month, external_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'fixed', ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
       [owner, String(payload.description), asNumber(payload.amount), due, due, payload.category_id || null, String(payload.payment_method || 'pix'),
-        String(payload.merchant || ''), payload.account_id || null, recurrenceId, month, month, new Date().toISOString()],
+        String(payload.merchant || ''), payload.account_id || null, recurrenceId, month, month, `recurring-expense-${recurrenceId}-${month}`, new Date().toISOString()],
     )
     generated += 1
   }
@@ -401,6 +471,9 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
 
   const owner = await ownerId(context)
 
+  const advanced = await handleAdvancedLocal<T>(url, method, payload, owner)
+  if (advanced.handled) return advanced.value
+
   // Dashboard e alertas
   if (url.pathname === '/dashboard' && method === 'GET') return await dashboard(owner, String(url.searchParams.get('month') || monthOf(todayLocal()))) as T
   if (url.pathname === '/alerts' && method === 'GET') return await alerts(owner) as T
@@ -466,12 +539,12 @@ export async function handleLocalApi<T>(path: string, options: RequestInit, cont
   // Rendas
   if (url.pathname === '/incomes' && method === 'GET') return (await queryRows<Record<string, unknown>>('SELECT * FROM incomes WHERE owner_id=? AND substr(expected_date,1,7)=? ORDER BY expected_date DESC', [owner, String(url.searchParams.get('month'))])).map(normalizeIncome) as T
   if (url.pathname === '/incomes' && method === 'POST') {
-    const id = await execute(`INSERT INTO incomes(owner_id,description,amount_expected,amount_received,expected_date,received_date,status,account_id,category_id,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [owner, requiredText(payload, 'description', 'Descrição'), asNumber(payload.amount_expected), asNumber(payload.amount_received), String(payload.expected_date), payload.received_date || null, String(payload.status || 'pending'), payload.account_id || null, payload.category_id || null, String(payload.notes || ''), new Date().toISOString()])
+    const id = await execute(`INSERT INTO incomes(owner_id,description,amount_expected,amount_received,expected_date,received_date,status,account_id,category_id,notes,recurrence_id,external_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [owner, requiredText(payload, 'description', 'Descrição'), asNumber(payload.amount_expected), asNumber(payload.amount_received), String(payload.expected_date), payload.received_date || null, String(payload.status || 'pending'), payload.account_id || null, payload.category_id || null, String(payload.notes || ''), payload.recurrence_id || null, payload.external_id || `income-${randomId()}`, new Date().toISOString()])
     return normalizeIncome(await owned('incomes', id, owner)) as T
   }
   if (parts[0] === 'incomes' && parts[1]) {
     const id = Number(parts[1]); await owned('incomes', id, owner)
-    if (method === 'PATCH') { await execute(`UPDATE incomes SET description=?,amount_expected=?,amount_received=?,expected_date=?,received_date=?,status=?,account_id=?,category_id=?,notes=? WHERE id=? AND owner_id=?`, [requiredText(payload, 'description', 'Descrição'), asNumber(payload.amount_expected), asNumber(payload.amount_received), String(payload.expected_date), payload.received_date || null, String(payload.status || 'pending'), payload.account_id || null, payload.category_id || null, String(payload.notes || ''), id, owner]); return normalizeIncome(await owned('incomes', id, owner)) as T }
+    if (method === 'PATCH') { await execute(`UPDATE incomes SET description=?,amount_expected=?,amount_received=?,expected_date=?,received_date=?,status=?,account_id=?,category_id=?,notes=?,external_id=? WHERE id=? AND owner_id=?`, [requiredText(payload, 'description', 'Descrição'), asNumber(payload.amount_expected), asNumber(payload.amount_received), String(payload.expected_date), payload.received_date || null, String(payload.status || 'pending'), payload.account_id || null, payload.category_id || null, String(payload.notes || ''), payload.external_id || null, id, owner]); return normalizeIncome(await owned('incomes', id, owner)) as T }
     if (method === 'DELETE') { await execute('DELETE FROM incomes WHERE id=? AND owner_id=?', [id, owner]); return { message: 'Renda excluída' } as T }
   }
 

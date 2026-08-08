@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   name TEXT NOT NULL,
   account_type TEXT NOT NULL DEFAULT 'digital',
   initial_balance REAL NOT NULL DEFAULT 0,
+  reported_balance REAL,
+  balance_checked_at TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
@@ -65,6 +67,19 @@ CREATE TABLE IF NOT EXISTS cards (
   color TEXT NOT NULL DEFAULT '#22c55e',
   is_active INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS recurring_incomes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  amount REAL NOT NULL,
+  expected_day INTEGER NOT NULL,
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  start_month TEXT NOT NULL,
+  end_month TEXT,
+  active INTEGER NOT NULL DEFAULT 1
+);
 CREATE TABLE IF NOT EXISTS incomes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -77,8 +92,12 @@ CREATE TABLE IF NOT EXISTS incomes (
   account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
   notes TEXT NOT NULL DEFAULT '',
+  recurrence_id INTEGER REFERENCES recurring_incomes(id) ON DELETE SET NULL,
+  external_id TEXT,
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS ix_incomes_owner_recurrence ON incomes(owner_id, recurrence_id);
+CREATE INDEX IF NOT EXISTS ix_incomes_owner_external ON incomes(owner_id, external_id);
 CREATE TABLE IF NOT EXISTS recurring_expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -116,6 +135,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   total_installments INTEGER,
   billing_month TEXT NOT NULL,
   list_month TEXT NOT NULL,
+  external_id TEXT,
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_expenses_owner_list_month ON expenses(owner_id, list_month);
@@ -144,6 +164,45 @@ CREATE TABLE IF NOT EXISTS loan_installments (
   status TEXT NOT NULL DEFAULT 'pending',
   paid_date TEXT,
   account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS budgets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  limit_amount REAL NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(owner_id, month, category_id)
+);
+CREATE TABLE IF NOT EXISTS goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  target_amount REAL NOT NULL,
+  current_amount REAL NOT NULL DEFAULT 0,
+  target_date TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS internal_transfers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  to_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  amount REAL NOT NULL,
+  transfer_date TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS import_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pattern TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'expense',
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  payment_method TEXT NOT NULL DEFAULT 'pix',
+  created_at TEXT NOT NULL,
+  UNIQUE(owner_id, pattern, kind)
 );
 `
 
@@ -184,6 +243,23 @@ async function openDatabaseConnection(): Promise<SQLiteDBConnection> {
   const opened = await database.isDBOpen().catch(() => ({ result: false }))
   if (!opened.result) await database.open()
   await database.execute(SCHEMA)
+  // v0.5.0: adiciona colunas a bancos existentes sem apagar dados.
+  const ensureColumn = async (table: string, column: string, definition: string) => {
+    const info = await database.query(`PRAGMA table_info(${table})`)
+    const exists = (info.values || []).some((row: Record<string, unknown>) => String(row.name) === column)
+    if (!exists) await database.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`)
+  }
+  await ensureColumn('accounts', 'reported_balance', 'REAL')
+  await ensureColumn('accounts', 'balance_checked_at', 'TEXT')
+  await ensureColumn('incomes', 'recurrence_id', 'INTEGER')
+  await ensureColumn('incomes', 'external_id', 'TEXT')
+  await ensureColumn('expenses', 'external_id', 'TEXT')
+  await database.execute(`
+    CREATE INDEX IF NOT EXISTS ix_incomes_owner_recurrence ON incomes(owner_id, recurrence_id);
+    CREATE INDEX IF NOT EXISTS ix_incomes_owner_external ON incomes(owner_id, external_id);
+    CREATE INDEX IF NOT EXISTS ix_expenses_owner_external ON expenses(owner_id, external_id);
+    INSERT OR REPLACE INTO app_meta(key, value) VALUES ('migration_0_5_0_financial_engine', 'applied');
+  `)
   // 0.4.1: cartão passa a afetar o mês do vencimento da fatura. A correção é
   // idempotente para também normalizar bancos importados de versões anteriores.
   await database.execute(`

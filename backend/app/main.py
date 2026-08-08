@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, SessionLocal, engine
-from .routers import admin, auth, backups, finance, reports, transfer
+from .routers import admin, advanced, auth, backups, finance, reports, sync, transfer
 from .services.backup import (
     apply_pending_database_import,
     create_backup,
@@ -44,7 +44,7 @@ async def lifespan(_app: FastAPI):
     mdns.stop()
 
 
-app = FastAPI(title="Smart Finance API", version="0.4.4", lifespan=lifespan)
+app = FastAPI(title="Smart Finance API", version="0.5.3", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -67,6 +67,8 @@ async def disable_frontend_cache(request, call_next):
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(finance.router)
+app.include_router(advanced.router)
+app.include_router(sync.router)
 app.include_router(reports.router)
 app.include_router(backups.router)
 app.include_router(transfer.router)
@@ -74,7 +76,7 @@ app.include_router(transfer.router)
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Smart Finance", "version": "0.4.4"}
+    return {"status": "ok", "app": "Smart Finance", "version": "0.5.3"}
 
 
 if FRONTEND_DIST.exists():

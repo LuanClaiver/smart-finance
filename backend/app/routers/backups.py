@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 import os
 import tempfile
 
@@ -44,6 +45,44 @@ def export_database(_admin: User = Depends(require_admin)):
         filename=f"smart-finance-{timestamp}.db",
         background=BackgroundTask(cleanup_sqlite_temporary_files, path),
     )
+
+
+@router.post("/inspect-database")
+async def inspect_database(
+    upload: UploadFile = File(...),
+    _admin: User = Depends(require_admin),
+):
+    suffix = Path(upload.filename or "smart_finance.db").suffix or ".db"
+    fd, name = tempfile.mkstemp(prefix="smart-finance-inspect-", suffix=suffix)
+    temp_path = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as target:
+            while chunk := await upload.read(1024 * 1024):
+                target.write(chunk)
+        if temp_path.suffix.lower() != ".db":
+            raise HTTPException(status_code=400, detail="Selecione um arquivo .db válido.")
+        with sqlite3.connect(str(temp_path)) as connection:
+            check = connection.execute("PRAGMA quick_check").fetchone()
+            if not check or str(check[0]).lower() != "ok":
+                raise HTTPException(status_code=400, detail="O banco está corrompido ou incompleto.")
+            tables = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()]
+            if "users" not in tables:
+                raise HTTPException(status_code=400, detail="O arquivo não pertence ao Smart Finance.")
+            important = ["users", "accounts", "cards", "incomes", "expenses", "loans", "recurring_expenses", "recurring_incomes", "budgets", "goals"]
+            counts = {}
+            for table in important:
+                if table in tables:
+                    counts[table] = int(connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+            migrations = []
+            if "app_migrations" in tables:
+                migrations = [str(row[0]) for row in connection.execute("SELECT name FROM app_migrations ORDER BY applied_at DESC LIMIT 8").fetchall()]
+        return {"valid": True, "filename": upload.filename, "size": temp_path.stat().st_size, "table_count": len(tables), "counts": counts, "recent_migrations": migrations, "integrity": "ok"}
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(status_code=400, detail="O arquivo não é um banco SQLite válido.") from exc
+    finally:
+        try: await upload.close()
+        except Exception: pass
+        cleanup_sqlite_temporary_files(temp_path)
 
 
 @router.post("/import-database")

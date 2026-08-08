@@ -1,42 +1,13 @@
-# Smart Finance Mobile 0.4.4
+# Smart Finance Mobile 0.5.2
 
-Aplicativo Android local criado com React, Capacitor e SQLite.
+Aplicativo Android independente do Smart Finance, com banco SQLite local.
 
-## Importação de banco SQLite
+## Destaques da 0.5.2
 
-Em **Configurações > Backup e banco de dados**, o APK aceita arquivos `.db` compatíveis com o Smart Finance. A versão 0.4.4 valida o banco com o SQLite nativo antes da substituição e mantém uma etapa de rollback para evitar perda do banco atual caso a troca falhe.
+- Compatibilidade de login com bancos vindos do Windows e do próprio APK.
+- Reconhecimento de hashes PBKDF2 e do scrypt legado do desktop.
+- Conversão automática de contas antigas para o formato compartilhado depois do primeiro login válido, sem mudar a senha.
+- Login por nome de usuário ou e-mail preservado.
+- Todas as funções do Motor Financeiro 0.5.0 e as correções da 0.5.1 permanecem disponíveis.
 
-
-## Regra de mês das despesas
-
-Toda despesa aparece no mês do vencimento. Exemplo: um lançamento criado em agosto com vencimento em 08/09/2026 fica em setembro de 2026. Bancos antigos são normalizados automaticamente.
-
-## Acesso inicial
-
-- Usuário: `Admin`
-- Senha: `1234`
-
-O login e os dados financeiros funcionam localmente no aparelho.
-
-## Leitura de comprovantes pela câmera
-
-Nas telas **Despesas** e **Rendas**, toque em **Ler comprovante** para abrir a câmera traseira. O aplicativo analisa a foto e sugere:
-
-- valor;
-- estabelecimento ou origem;
-- descrição;
-- data;
-- forma de pagamento;
-- categoria.
-
-O formulário é aberto para conferência antes de salvar. Em despesas, a foto também é anexada automaticamente ao lançamento. A primeira leitura pode precisar de internet para preparar o mecanismo OCR.
-
-## Compilação
-
-A compilação principal é feita pelo GitHub Actions em:
-
-`.github/workflows/02-gerar-apk-android.yml`
-
-## Importação de versões anteriores
-
-Em **Configurações**, o APK ainda pode importar um ZIP gerado por versões anteriores da edição Windows. O aplicativo cria um backup automático e permite substituir ou adicionar os dados sem alterar usuários ou senhas.
+A geração Android é preparada pelo script `scripts/mobile/Aplicar-Ajustes-Android.ps1` e pelos workflows do GitHub Actions.

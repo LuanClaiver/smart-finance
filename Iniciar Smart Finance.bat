@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 chcp 65001 >nul
-title Smart Finance 0.4.4
+title Smart Finance 0.5.3
 
 set "ROOT=%~dp0"
 set "BACKEND=%ROOT%backend"
@@ -12,7 +12,7 @@ rem "O nome do arquivo ou a extensao e muito grande" do Windows.
 set "SF_HOME=%LOCALAPPDATA%\SmartFinance"
 set "VENV=%SF_HOME%\PythonEnv"
 set "PYTHON=%VENV%\Scripts\python.exe"
-set "READY=%SF_HOME%\ambiente-pronto-0.4.4.txt"
+set "READY=%SF_HOME%\ambiente-pronto-0.5.3.txt"
 set "PIP_CACHE_DIR=%SF_HOME%\pip-cache"
 set "PYTHONUTF8=1"
 set "PIP_DISABLE_PIP_VERSION_CHECK=1"
@@ -31,7 +31,7 @@ goto :start
 
 :prepare
 echo ================================================
-echo       PREPARANDO SMART FINANCE 0.4.4
+echo       PREPARANDO SMART FINANCE 0.5.3
 echo ================================================
 echo O ambiente sera criado em uma pasta curta do Windows:
 echo %VENV%
@@ -70,7 +70,7 @@ rem Zeroconf e opcional. Falha nele nao impede o sistema de funcionar por localh
 "%PYTHON%" -c "import zeroconf" >nul 2>&1
 if errorlevel 1 echo AVISO: descoberta automatica smartfinance.local indisponivel. Use localhost ou o IP do computador.
 
->"%READY%" echo Smart Finance 0.4.4 preparado em %date% %time%
+>"%READY%" echo Smart Finance 0.5.3 preparado em %date% %time%
 echo.
 echo Preparacao concluida.
 echo.
@@ -81,7 +81,7 @@ if not exist "%BACKEND%\storage" mkdir "%BACKEND%\storage"
 if not exist "%BACKEND%\backups" mkdir "%BACKEND%\backups"
 
 echo ================================================
-echo            SMART FINANCE 0.4.4
+echo            SMART FINANCE 0.5.3
 echo ================================================
 echo.
 echo Computador: http://localhost:8000

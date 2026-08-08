@@ -24,6 +24,11 @@ from ..models import (
     Loan,
     LoanInstallment,
     RecurringExpense,
+    RecurringIncome,
+    Budget,
+    Goal,
+    InternalTransfer,
+    ImportRule,
     User,
 )
 
@@ -86,7 +91,7 @@ def export_transfer_package(
         "format": "smart-finance-transfer",
         "version": 1,
         "created_at": datetime.now().isoformat(),
-        "application_version": "0.4.4",
+        "application_version": "0.5.3",
         "profile": {
             "username": owner.username,
             "display_name": owner.display_name,
@@ -97,14 +102,15 @@ def export_transfer_package(
             "accounts": jsonable_encoder(_owned_rows(db, Account, owner_id)),
             "cards": jsonable_encoder(_owned_rows(db, Card, owner_id)),
             "incomes": jsonable_encoder(_owned_rows(db, Income, owner_id)),
-            "recurring_expenses": jsonable_encoder(
-                _owned_rows(db, RecurringExpense, owner_id)
-            ),
+            "recurring_expenses": jsonable_encoder(_owned_rows(db, RecurringExpense, owner_id)),
+            "recurring_incomes": jsonable_encoder(_owned_rows(db, RecurringIncome, owner_id)),
             "expenses": expense_rows,
             "loans": jsonable_encoder(_owned_rows(db, Loan, owner_id)),
-            "loan_installments": jsonable_encoder(
-                _owned_rows(db, LoanInstallment, owner_id)
-            ),
+            "loan_installments": jsonable_encoder(_owned_rows(db, LoanInstallment, owner_id)),
+            "budgets": jsonable_encoder(_owned_rows(db, Budget, owner_id)),
+            "goals": jsonable_encoder(_owned_rows(db, Goal, owner_id)),
+            "internal_transfers": jsonable_encoder(_owned_rows(db, InternalTransfer, owner_id)),
+            "import_rules": jsonable_encoder(_owned_rows(db, ImportRule, owner_id)),
         },
     }
 

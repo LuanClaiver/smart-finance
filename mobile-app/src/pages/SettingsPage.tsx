@@ -4,7 +4,9 @@ import { api, jsonBody, setToken } from '../services/api'
 import { confirmAction } from '../services/confirm'
 import { navigateTo } from '../services/navigation'
 import { exportMobileDatabase, importMobileDatabase } from '../services/mobile/backup'
+import { biometricAvailability, getSecuritySettings, hasSecurityPin, saveSecuritySettings, setSecurityPin, type SecuritySettings } from '../services/mobile/security'
 import {
+  exportSyncPackage,
   importTransferPackage,
   previewTransferPackage,
   type TransferImportMode,
@@ -28,6 +30,9 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
   const [readingTransfer, setReadingTransfer] = useState(false)
   const [importingTransfer, setImportingTransfer] = useState(false)
   const [importingDatabase, setImportingDatabase] = useState(false)
+  const [security, setSecurity] = useState<SecuritySettings>({ enabled: false, biometric: false, timeoutMinutes: 3 })
+  const [biometricAvailable, setBiometricAvailable] = useState(false)
+  const [pinConfigured, setPinConfigured] = useState(false)
   const passwordFormRef = useRef<HTMLFormElement>(null)
   const recoveryFormRef = useRef<HTMLFormElement>(null)
   const categoryFormRef = useRef<HTMLFormElement>(null)
@@ -39,6 +44,25 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
   useEffect(() => {
     void loadCategories()
   }, [user.role])
+
+  useEffect(() => {
+    void Promise.all([getSecuritySettings(), biometricAvailability(), hasSecurityPin()]).then(([settings, availability, hasPin]) => {
+      setSecurity(settings); setBiometricAvailable(availability.available); setPinConfigured(hasPin)
+    })
+  }, [])
+
+  async function saveAppSecurity(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const pin = String(form.get('pin') || '').trim()
+    try {
+      if (pin) { await setSecurityPin(pin); setPinConfigured(true) }
+      if (security.enabled && !pinConfigured && !pin) throw new Error('Defina um PIN antes de ativar o bloqueio.')
+      const next = { ...security, biometric: security.biometric && biometricAvailable, timeoutMinutes: Number(form.get('timeout') || security.timeoutMinutes || 3) }
+      await saveSecuritySettings(next); setSecurity(next)
+      toast.success('Proteção atualizada', next.enabled ? 'Bloqueio automático configurado.' : 'Bloqueio do aplicativo desativado.')
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao salvar proteção'; setError(failure); toast.error('Não foi possível salvar', failure) }
+  }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -237,6 +261,19 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     }
   }
 
+  async function exportToComputer() {
+    setError('')
+    try {
+      const ownerId = Number(localStorage.getItem('smart-finance-owner-id')) || user.id
+      const result = await exportSyncPackage(ownerId)
+      setMessage(`${result.message}: ${result.name}`)
+      toast.success('Pacote para o computador criado', 'No Smart Finance do PC, abra Configurações e importe o arquivo .sfsync.')
+    } catch (err) {
+      const failure = err instanceof Error ? err.message : 'Erro ao exportar sincronização'
+      setError(failure); toast.error('Não foi possível criar o pacote', failure)
+    }
+  }
+
   return <>
     <PageHeader title="Configurações" subtitle="Segurança, categorias, importação, backups e informações do sistema" />
     {user.must_change_password && <div className="warning-banner">A conta ainda usa uma senha temporária. Altere-a antes de continuar usando o sistema.</div>}
@@ -297,6 +334,23 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
         </div>}
         <small className="muted-text">Um backup automático é criado antes de qualquer importação. Usuários e senhas do APK não são alterados.</small>
       </article>
+
+      <article className="panel transfer-panel sync-panel">
+        <div className="panel-title-row"><div><span className="panel-kicker">Celular → computador</span><h3>Enviar alterações para o PC</h3></div><span className="panel-icon" aria-hidden="true">🔄</span></div>
+        <p>Crie um pacote de sincronização com seus lançamentos, contas, cartões, recorrências, orçamentos, metas e transferências feitos no APK.</p>
+        <button type="button" className="primary-button" onClick={exportToComputer}>Criar pacote .sfsync</button>
+        <small className="muted-text">Ao importar no computador, o Smart Finance cria backup antes da mesclagem e usa identificadores para evitar duplicações.</small>
+      </article>
+
+      <form className="panel mobile-security-panel" onSubmit={saveAppSecurity}>
+        <div className="panel-title-row"><div><span className="panel-kicker">Privacidade</span><h3>PIN, biometria e bloqueio automático</h3></div><span className="panel-icon" aria-hidden="true">🔐</span></div>
+        <label className="toggle-line"><input type="checkbox" checked={security.enabled} onChange={(e)=>setSecurity(current=>({...current,enabled:e.target.checked}))}/> Bloquear o Smart Finance ao voltar ao aplicativo</label>
+        <label>Novo PIN (4 a 8 números)<input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" placeholder={pinConfigured?'PIN já configurado — deixe vazio para manter':'Defina um PIN'} /></label>
+        <label>Bloquear após<select name="timeout" value={security.timeoutMinutes} onChange={(e)=>setSecurity(current=>({...current,timeoutMinutes:Number(e.target.value)}))}><option value="1">1 minuto</option><option value="3">3 minutos</option><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="30">30 minutos</option></select></label>
+        <label className="toggle-line"><input type="checkbox" checked={security.biometric} disabled={!biometricAvailable} onChange={(e)=>setSecurity(current=>({...current,biometric:e.target.checked}))}/> Usar biometria quando disponível</label>
+        {!biometricAvailable&&<small className="muted-text">A biometria depende do aparelho e do APK gerado com o plugin Android da versão 0.5.0.</small>}
+        <button className="primary-button">Salvar proteção</button>
+      </form>
 
       <article className="panel category-panel">
         <h3>Categorias</h3>

@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 from datetime import date
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -18,6 +19,7 @@ from ..services.alerts import get_alerts
 from ..services.finance import (
     add_months,
     card_billing_month,
+    card_due_date,
     create_expense_installments,
     dashboard_summary,
     expense_reference_month_filter,
@@ -195,7 +197,14 @@ def list_incomes(month: str, owner_id: int = Depends(resolve_owner_id), db: Sess
 
 @router.post("/incomes")
 def create_income(payload: IncomeInput, owner_id: int = Depends(resolve_owner_id), db: Session = Depends(get_db)):
-    item = Income(owner_id=owner_id, **payload.model_dump())
+    if payload.external_id:
+        existing = db.scalar(select(Income).where(Income.owner_id == owner_id, Income.external_id == payload.external_id))
+        if existing:
+            return existing
+    data = payload.model_dump()
+    if not data.get("external_id"):
+        data["external_id"] = f"income-{uuid4()}"
+    item = Income(owner_id=owner_id, **data)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -239,10 +248,8 @@ def create_expense(payload: ExpenseInput, owner_id: int = Depends(resolve_owner_
 def update_expense(item_id: int, payload: ExpenseInput, owner_id: int = Depends(resolve_owner_id), db: Session = Depends(get_db)):
     item = _owned(db, Expense, item_id, owner_id)
     card = _owned(db, Card, payload.card_id, owner_id) if payload.card_id else None
-    data = payload.model_dump(exclude={"installments", "list_month"})
-    # Uma data de pagamento representa uma despesa efetivamente paga. Também
-    # preenchemos a data atual quando o status for alterado para pago sem uma
-    # data explícita, garantindo consistência entre tela, API e banco.
+    due_date = card_due_date(payload.purchase_date, card) if card and payload.auto_card_due else (payload.due_date or item.due_date or payload.purchase_date)
+    data = payload.model_dump(exclude={"installments", "list_month", "auto_card_due", "due_date"})
     if data.get("paid_date") is not None:
         data["status"] = "paid"
     elif data.get("status") == "paid":
@@ -251,8 +258,10 @@ def update_expense(item_id: int, payload: ExpenseInput, owner_id: int = Depends(
         data["paid_date"] = None
     for key, value in data.items():
         setattr(item, key, value)
-    item.billing_month = card_billing_month(payload.purchase_date, card) if card else f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
-    item.list_month = f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
+    item.due_date = due_date
+    item.payment_method = "credit_card" if card else payload.payment_method
+    item.billing_month = card_billing_month(payload.purchase_date, card) if card else f"{due_date.year:04d}-{due_date.month:02d}"
+    item.list_month = f"{due_date.year:04d}-{due_date.month:02d}"
     db.commit()
     db.refresh(item)
     return item

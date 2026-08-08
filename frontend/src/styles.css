@@ -2113,3 +2113,202 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
   .invoice-title { align-items: flex-start; }
   .invoice-items > div { align-items: flex-start; }
 }
+
+/* Smart Finance 0.5.0 — planejamento, recorrências, busca e segurança */
+.financial-health { display:grid; gap:14px; }
+.financial-health .panel-kicker,.panel-kicker { color:var(--muted); font-size:.74rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.health-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.health-metrics > div,.insight-card { min-width:0; }
+.dashboard-insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.insight-card { display:grid; gap:5px; }
+.insight-card strong { font-size:1.08rem; }
+.positive-text,.reconcile-ok { color:var(--success,#2bb673); }
+.negative-text,.reconcile-warning { color:var(--danger,#ef5b5b); }
+
+.planning-header-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.planning-summary { margin-bottom:14px; }
+.planning-forecast-panel,.installment-center { margin-top:14px; }
+.forecast-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+.forecast-card { border:1px solid var(--border); border-radius:14px; padding:12px; display:grid; gap:6px; background:var(--surface); }
+.forecast-card > div { display:flex; justify-content:space-between; gap:10px; }
+.planning-two-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }
+.inline-finance-form,.goal-form,.import-rule-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:12px 0; }
+.inline-finance-form > button,.goal-form > button,.import-rule-form > button { align-self:end; }
+.budget-list,.goal-list,.installment-grid,.simple-list,.rule-list,.statement-list { display:grid; gap:9px; }
+.budget-row,.goal-row,.simple-list-row,.rule-list > div,.statement-list > div { border:1px solid var(--border); border-radius:12px; padding:11px; background:var(--surface); }
+.budget-row,.goal-row,.simple-list-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.budget-row > div:first-child,.goal-row > div:first-child { flex:1; min-width:0; }
+.budget-track { height:7px; border-radius:999px; overflow:hidden; background:var(--surface-strong,var(--border)); margin-top:7px; }
+.budget-track > span { display:block; height:100%; border-radius:inherit; background:currentColor; }
+.installment-grid { grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); }
+.installment-grid > article { border:1px solid var(--border); border-radius:13px; padding:12px; display:grid; gap:5px; }
+
+.account-summary-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+.account-balance-stack { display:grid; gap:4px; margin:10px 0; }
+.account-balance-stack strong { font-size:1.25rem; }
+.reconciliation-summary { border:1px solid var(--border); border-radius:12px; padding:12px; display:grid; gap:5px; }
+.transfers-history { margin-top:14px; }
+.simple-list-row > div { min-width:0; }
+
+.recurrence-control { border:1px solid var(--border); border-radius:12px; padding:11px 12px; background:var(--surface); }
+.recurrence-badge { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); border-radius:999px; padding:3px 7px; font-size:.72rem; font-weight:800; color:var(--muted); }
+.recurrence-stop-action { color:var(--danger,#ef5b5b); }
+.card-due-auto { grid-column:1/-1; border:1px dashed var(--border); border-radius:12px; padding:10px 12px; color:var(--muted); font-size:.82rem; }
+
+.global-search { position:relative; width:min(420px,100%); }
+.global-search input { width:100%; }
+.global-search-results { position:absolute; z-index:80; left:0; right:0; top:calc(100% + 6px); max-height:360px; overflow:auto; padding:6px; border:1px solid var(--border); border-radius:14px; background:var(--panel,var(--surface)); box-shadow:0 18px 50px rgb(0 0 0 / 25%); }
+.global-search-results button { width:100%; display:grid; gap:2px; text-align:left; border:0; background:transparent; color:inherit; border-radius:10px; padding:9px 10px; cursor:pointer; }
+.global-search-results button:hover { background:var(--surface); }
+.global-search-results small,.global-search-empty { color:var(--muted); }
+.global-search-empty { padding:10px; }
+
+.statement-settings { margin-top:12px; }
+.file-button { position:relative; overflow:hidden; }
+.statement-list > div { display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center; }
+.sync-panel { border-style:dashed; }
+
+@media (max-width:900px) {
+  .health-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dashboard-insight-grid,.planning-two-columns { grid-template-columns:1fr; }
+}
+@media (max-width:590px) {
+  .health-metrics { grid-template-columns:1fr 1fr; }
+  .inline-finance-form,.goal-form,.import-rule-form { grid-template-columns:1fr; }
+  .budget-row,.goal-row,.simple-list-row { align-items:flex-start; flex-direction:column; }
+  .statement-list > div { grid-template-columns:auto 1fr auto; }
+  .statement-list > div > :last-child { grid-column:2/-1; }
+}
+.advanced-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(3,minmax(145px,1fr)) auto; gap:8px; align-items:center; margin:10px 0 12px; padding:10px; }
+.advanced-filters input,.advanced-filters select { width:100%; }
+@media (max-width:900px){ .advanced-filters{grid-template-columns:repeat(2,minmax(0,1fr));} }
+@media (max-width:590px){ .advanced-filters{grid-template-columns:1fr;} }
+
+
+/* Smart Finance 0.5.3 — ajustes visuais da navegação e visão geral */
+.brand-button {
+  width: 100%;
+  border: 0;
+  padding: 8px 8px 18px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-button:hover {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border-radius: 16px;
+}
+.brand-button > div {
+  min-width: 0;
+}
+.mobile-brand-button {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.global-search {
+  position: relative;
+  width: min(420px, 100%);
+  display: flex;
+  align-items: center;
+}
+.global-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  font-size: .95rem;
+  line-height: 1;
+}
+.global-search input {
+  width: 100%;
+  padding-left: 38px;
+  min-height: 42px;
+}
+.sidebar-search,
+.mobile-global-search {
+  margin-bottom: 16px;
+}
+
+.dashboard-section-grid {
+  margin-top: 16px;
+}
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.dashboard-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.chart-grid {
+  gap: 18px;
+  margin-top: 16px;
+  align-items: start;
+}
+.financial-health {
+  gap: 16px;
+}
+.health-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.health-metrics > span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.health-metrics small,
+.insight-card small {
+  color: var(--muted);
+}
+.health-metrics strong {
+  font-size: 1.18rem;
+  line-height: 1.2;
+}
+.insight-card {
+  gap: 7px;
+}
+.progress-summary-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+.progress-panel,
+.dashboard-category-panel {
+  min-height: 410px;
+}
+
+@media (max-width: 900px) {
+  .summary-grid,
+  .dashboard-insight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 590px) {
+  .summary-grid,
+  .dashboard-insight-grid,
+  .health-metrics {
+    grid-template-columns: 1fr;
+  }
+  .brand-button {
+    padding-bottom: 14px;
+  }
+}

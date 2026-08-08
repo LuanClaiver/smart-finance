@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import { api, jsonBody, setToken } from '../services/api'
+import { confirmAction } from '../services/confirm'
 import { toast } from '../services/toast'
 import type { Category, User } from '../types'
 
@@ -45,6 +46,7 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
   const [categories, setCategories] = useState<Category[]>([])
   const [importingDatabase, setImportingDatabase] = useState(false)
   const [exportingTransfer, setExportingTransfer] = useState(false)
+  const [importingSync, setImportingSync] = useState(false)
   const passwordFormRef = useRef<HTMLFormElement>(null)
   const recoveryFormRef = useRef<HTMLFormElement>(null)
   const categoryFormRef = useRef<HTMLFormElement>(null)
@@ -167,6 +169,22 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     }
   }
 
+  async function importSyncFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setImportingSync(true); setError('')
+    try {
+      const confirmed = await confirmAction({ title: 'Sincronizar dados do celular?', message: 'Os lançamentos e cadastros do pacote serão mesclados aos dados deste usuário.', detail: 'O Smart Finance cria um backup automático antes da mesclagem e tenta evitar duplicações pelos identificadores dos lançamentos.', confirmLabel: 'Criar backup e sincronizar', tone: 'warning' })
+      if (!confirmed) return
+      const body = new FormData(); body.append('upload', file)
+      const result = await api<{ message: string; backup: string; imported: Record<string, number> }>('/sync/import', { method: 'POST', body })
+      const total = Object.values(result.imported || {}).reduce((sum, value) => sum + Number(value || 0), 0)
+      setMessage(`${result.message}. ${total} registro(s) novo(s). Backup: ${result.backup}`)
+      toast.success('Sincronização concluída', `${total} registro(s) novo(s) foram incorporados ao computador.`)
+    } catch (err) { const failure = err instanceof Error ? err.message : 'Erro ao sincronizar'; setError(failure); toast.error('Não foi possível sincronizar', failure) }
+    finally { event.target.value = ''; setImportingSync(false) }
+  }
+
   async function exportDatabase() {
     try {
       setError('')
@@ -189,6 +207,16 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
     setMessage('')
 
     try {
+      const inspectBody = new FormData()
+      inspectBody.append('upload', file)
+      const preview = await api<{ valid: boolean; size: number; table_count: number; counts: Record<string, number>; integrity: string }>('/backups/inspect-database', { method: 'POST', body: inspectBody })
+      const confirmed = await confirmAction({
+        title: 'Importar este banco?',
+        message: `Banco íntegro: ${preview.table_count} tabelas, ${preview.counts.expenses || 0} despesas, ${preview.counts.incomes || 0} rendas e ${preview.counts.users || 0} usuário(s).`,
+        detail: `Tamanho: ${(preview.size / 1024).toFixed(1)} KB. O banco atual será salvo em backup antes da substituição.`,
+        confirmLabel: 'Criar backup e importar', tone: 'danger',
+      })
+      if (!confirmed) return
       const body = new FormData()
       body.append('upload', file)
       const response = await api<{
@@ -259,6 +287,13 @@ export default function SettingsPage({ user, onUser }: { user: User; onUser: (us
           <li>No APK, abra Configurações e toque em “Importar dados do computador”.</li>
         </ol>
         <button type="button" className="primary-button" onClick={exportTransferPackage} disabled={exportingTransfer}>{exportingTransfer ? 'Preparando pacote...' : 'Exportar dados para o celular'}</button>
+      </article>
+
+      <article className="panel transfer-panel sync-panel">
+        <div className="panel-title-row"><div><span className="panel-kicker">Celular → computador</span><h3>Sincronizar alterações do APK</h3></div><span className="panel-icon" aria-hidden="true">🔄</span></div>
+        <p>No celular, use “Criar pacote .sfsync”. Aqui, selecione o arquivo para mesclar despesas, rendas, cartões, recorrências, orçamentos, metas e transferências.</p>
+        <label className="secondary-button file-action-button"><input type="file" accept=".sfsync,application/json" onChange={importSyncFile} disabled={importingSync}/>{importingSync?'Sincronizando...':'Importar pacote .sfsync'}</label>
+        <small className="muted-text">Um backup é criado antes de cada sincronização.</small>
       </article>
 
       <article className="panel category-panel">

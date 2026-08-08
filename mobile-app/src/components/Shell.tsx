@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AppTheme } from '../services/theme'
 import type { User } from '../types'
+import GlobalSearch from './GlobalSearch'
 
 type Props = {
   user: User
@@ -22,16 +23,22 @@ const baseItems = [
   ['accounts', '▣', 'Contas'],
   ['cards', '▤', 'Cartões'],
   ['loans', '↗', 'Empréstimos'],
+  ['planning', '⌁', 'Planejamento'],
+  ['import', '⇩', 'Importar extrato'],
   ['reports', '▧', 'Relatório PDF'],
   ['settings', '⚙', 'Configurações'],
 ]
 
 export default function Shell({ user, active, ownerUsers, ownerId, theme, onToggleTheme, onOwnerChange, onNavigate, onLogout, children }: Props) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
-  const items = useMemo(() => user.role === 'admin'
-    ? [...baseItems.slice(0, 7), ['admin', '♟', 'Usuários'], baseItems[7]]
-    : baseItems, [user.role])
+  const items = useMemo(
+    () => user.role === 'admin'
+      ? [...baseItems.slice(0, -1), ['admin', '♟', 'Usuários'], baseItems[baseItems.length - 1]]
+      : baseItems,
+    [user.role],
+  )
   const activeLabel = items.find(([id]) => id === active)?.[2] || 'Smart Finance'
 
   useEffect(() => {
@@ -39,7 +46,9 @@ export default function Shell({ user, active, ownerUsers, ownerId, theme, onTogg
     const onPointerDown = (event: MouseEvent) => {
       if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false)
     }
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMoreOpen(false) }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoreOpen(false)
+    }
     document.addEventListener('mousedown', onPointerDown)
     window.addEventListener('keydown', onKeyDown)
     return () => {
@@ -48,14 +57,23 @@ export default function Shell({ user, active, ownerUsers, ownerId, theme, onTogg
     }
   }, [moreOpen])
 
-  const navigate = (page: string) => { setMoreOpen(false); onNavigate(page) }
+  const navigate = (page: string) => {
+    setMoreOpen(false)
+    setQuickAddOpen(false)
+    onNavigate(page)
+  }
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="sidebar-brand-row">
-        <div className="brand"><span className="brand-mark"><img src="/icon.svg" alt="" /></span><div><strong>Smart Finance</strong><small>Controle financeiro local</small></div></div>
+        <button type="button" className="brand brand-button" onClick={() => navigate('dashboard')} aria-label="Voltar para a visão geral">
+          <span className="brand-mark"><img src="/icon.svg" alt="" /></span>
+          <div><strong>Smart Finance</strong><small>Controle financeiro local</small></div>
+        </button>
         <button type="button" className="theme-toggle sidebar-theme-toggle" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}>{theme === 'dark' ? '☀️' : '🌙'}</button>
       </div>
+
+      <div className="sidebar-search"><GlobalSearch onNavigate={navigate} /></div>
 
       {user.role === 'admin' && <label className="owner-selector">Dados exibidos<select value={ownerId} onChange={(event) => onOwnerChange(Number(event.target.value))}>{ownerUsers.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></label>}
 
@@ -71,17 +89,23 @@ export default function Shell({ user, active, ownerUsers, ownerId, theme, onTogg
     </aside>
 
     <header className="mobile-topbar">
-      <div className="mobile-topbar-brand">
+      <button type="button" className="mobile-topbar-brand mobile-brand-button" onClick={() => navigate('dashboard')} aria-label="Voltar para a visão geral">
         <img src="/icon.svg" alt="" />
         <div><strong>Smart Finance</strong><small>{activeLabel}</small></div>
-      </div>
+      </button>
       <button type="button" className="theme-toggle" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}>{theme === 'dark' ? '☀️' : '🌙'}</button>
     </header>
 
     <main className="main-content">
+      <div className="mobile-global-search"><GlobalSearch onNavigate={navigate} /></div>
       {user.role === 'admin' && <div className="mobile-owner-bar"><span>Visualizando:</span><select value={ownerId} onChange={(event) => onOwnerChange(Number(event.target.value))}>{ownerUsers.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></div>}
       {children}
     </main>
+
+    <div className="mobile-quick-add">
+      {quickAddOpen && <div className="mobile-quick-menu"><button onClick={() => navigate('expenses')}><span>−</span>Nova despesa</button><button onClick={() => navigate('incomes')}><span>+</span>Nova renda</button><button onClick={() => navigate('accounts')}><span>⇄</span>Transferir</button></div>}
+      <button type="button" className="mobile-fab" aria-label="Adicionar lançamento" onClick={() => setQuickAddOpen(value => !value)}>{quickAddOpen ? '×' : '+'}</button>
+    </div>
 
     <nav className="mobile-nav">
       {items.slice(0, 5).map(([id, icon, label]) => <button key={id} className={active === id ? 'active' : ''} onClick={() => navigate(id)}><span>{icon}</span><small>{label}</small></button>)}

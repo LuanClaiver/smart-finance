@@ -116,4 +116,31 @@ def run_migrations(engine: Engine) -> None:
                 "INSERT INTO app_migrations (name, applied_at) VALUES (?, ?)",
                 (ALL_EXPENSES_DUE_MONTH_REPAIR, datetime.utcnow().isoformat()),
             )
+        # v0.5.0 - Motor Financeiro: recorrências editáveis, conciliação,
+        # importação inteligente e planejamento. As novas tabelas são criadas
+        # por Base.metadata.create_all; aqui adicionamos apenas colunas em
+        # tabelas que já existiam em bancos das versões 0.4.x.
+        account_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(accounts)").fetchall()}
+        if "reported_balance" not in account_columns:
+            connection.exec_driver_sql("ALTER TABLE accounts ADD COLUMN reported_balance NUMERIC(12,2)")
+        if "balance_checked_at" not in account_columns:
+            connection.exec_driver_sql("ALTER TABLE accounts ADD COLUMN balance_checked_at DATETIME")
+
+        income_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(incomes)").fetchall()}
+        if "recurrence_id" not in income_columns:
+            connection.exec_driver_sql("ALTER TABLE incomes ADD COLUMN recurrence_id INTEGER")
+        if "external_id" not in income_columns:
+            connection.exec_driver_sql("ALTER TABLE incomes ADD COLUMN external_id VARCHAR(120)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_incomes_recurrence_id ON incomes (recurrence_id)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_incomes_external_id ON incomes (external_id)")
+
+        expense_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(expenses)").fetchall()}
+        if "external_id" not in expense_columns:
+            connection.exec_driver_sql("ALTER TABLE expenses ADD COLUMN external_id VARCHAR(120)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_expenses_external_id ON expenses (external_id)")
+
+        connection.exec_driver_sql(
+            "INSERT OR IGNORE INTO app_migrations (name, applied_at) VALUES (?, ?)",
+            ("0.5.0-financial-engine", datetime.utcnow().isoformat()),
+        )
 

@@ -4,7 +4,7 @@ import { Preferences } from '@capacitor/preferences'
 import { Share } from '@capacitor/share'
 import { closeDb, DATABASE_NAME, getDb, queryRows } from './db'
 
-const TABLES = ['users', 'categories', 'accounts', 'cards', 'incomes', 'recurring_expenses', 'expenses', 'loans', 'loan_installments']
+const TABLES = ['users', 'categories', 'accounts', 'cards', 'incomes', 'recurring_incomes', 'recurring_expenses', 'expenses', 'loans', 'loan_installments', 'budgets', 'goals', 'internal_transfers', 'import_rules']
 const HISTORY_KEY = 'smart-finance-mobile-backups'
 
 type BackupInfo = { name: string; size: number; created_at: string; uri?: string }

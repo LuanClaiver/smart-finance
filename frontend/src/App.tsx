@@ -13,6 +13,8 @@ import AccountsPage from './pages/AccountsPage'
 import CardsPage from './pages/CardsPage'
 import LoansPage from './pages/LoansPage'
 import ReportsPage from './pages/ReportsPage'
+import PlanningPage from './pages/PlanningPage'
+import ImportPage from './pages/ImportPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -96,6 +98,8 @@ export default function App() {
     : page === 'accounts' ? <AccountsPage key={pageKey} />
     : page === 'cards' ? <CardsPage key={pageKey} />
     : page === 'loans' ? <LoansPage key={pageKey} />
+    : page === 'planning' ? <PlanningPage key={pageKey} />
+    : page === 'import' ? <ImportPage key={pageKey} />
     : page === 'reports' ? <ReportsPage key={pageKey} />
     : page === 'admin' && user.role === 'admin' ? <AdminPage key={pageKey} currentUser={user} />
     : <SettingsPage key={pageKey} user={user} onUser={configureUser} />

@@ -5,7 +5,7 @@ export type NavigationTarget = {
 }
 
 const allowedPages = new Set([
-  'dashboard', 'incomes', 'expenses', 'accounts', 'cards', 'loans', 'reports', 'admin', 'settings',
+  'dashboard', 'incomes', 'expenses', 'accounts', 'cards', 'loans', 'planning', 'import', 'reports', 'admin', 'settings',
 ])
 
 export function readNavigationTarget(expectedPage?: string): NavigationTarget {

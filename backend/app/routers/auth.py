@@ -9,7 +9,7 @@ from ..database import get_db
 from ..dependencies import get_current_user
 from ..models import User
 from ..schemas import ChangePasswordRequest, ChangeRecoveryKeyRequest, LoginRequest, RecoverPasswordRequest, RegisterRequest, UserPublic
-from ..security import create_token, hash_secret, verify_secret
+from ..security import create_token, hash_secret, needs_rehash, verify_secret
 from ..services.seed import create_default_categories
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticação"])
@@ -67,6 +67,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = find_user_by_identifier(db, payload.identifier)
     if not user or not user.is_active or not verify_secret(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário, e-mail ou senha inválidos")
+
+    # Bancos vindos do APK usam PBKDF2 e bancos desktop antigos podem usar
+    # scrypt. Ambos são aceitos. Após um login válido, hashes legados são
+    # atualizados para o padrão compartilhado PC/APK sem alterar a senha.
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_secret(payload.password)
+        db.commit()
+
     return {"token": create_token(user.id, user.role), "user": UserPublic.model_validate(user)}
 
 

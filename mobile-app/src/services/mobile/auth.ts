@@ -1,6 +1,6 @@
 import type { User } from '../../types'
 import { execute, queryOne, queryRows, seedCategories } from './db'
-import { hashSecret, randomToken, verifySecret } from './crypto'
+import { hashSecret, randomToken, secretHashAlgorithm, verifySecret } from './crypto'
 import { getDb } from './db'
 
 type UserRow = User & {
@@ -60,6 +60,14 @@ async function findLocalUserByIdentifier(identifier: string, activeOnly = false)
 export async function loginLocal(identifier: string, password: string): Promise<{ token: string; user: User }> {
   const row = await findLocalUserByIdentifier(identifier, true)
   if (!row || !(await verifySecret(password, row.password_hash))) throw new Error('Usuário, e-mail ou senha inválidos')
+
+  // Bancos do programa Windows até a 0.5.1 podem conter scrypt. Depois do
+  // primeiro login correto no APK, convertemos somente o hash para PBKDF2,
+  // preservando a mesma senha e garantindo compatibilidade nas duas pontas.
+  if (secretHashAlgorithm(row.password_hash) === 'scrypt') {
+    await execute('UPDATE users SET password_hash = ? WHERE id = ?', [await hashSecret(password), row.id])
+  }
+
   return { token: createSession(Number(row.id)), user: publicUser(row) }
 }
 

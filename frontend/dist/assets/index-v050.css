@@ -46,14 +46,16 @@ code { color: #86efac; word-break: break-all; }
 .auth-links button { border: 0; background: transparent; color: #86efac; padding: 0; }
 .default-admin { margin-top: 20px; padding: 12px; border-radius: 10px; background: #08150e; color: var(--muted); font-size: .85rem; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px 1fr; }
-.sidebar { position: sticky; top: 0; height: 100vh; padding: 20px 14px; border-right: 1px solid var(--border); background: rgb(6 17 10 / 94%); backdrop-filter: blur(14px); display: flex; flex-direction: column; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(220px, 250px) minmax(0, 1fr); }
+.sidebar { position: sticky; top: 0; height: 100vh; min-height: 0; overflow: hidden; padding: 20px 14px; border-right: 1px solid var(--border); background: rgb(6 17 10 / 94%); backdrop-filter: blur(14px); display: flex; flex-direction: column; }
 .brand { display: flex; gap: 12px; align-items: center; padding: 8px 8px 24px; }
 .brand-mark { width: 44px; height: 44px; border-radius: 14px; display: grid; place-content: center; overflow: hidden; flex: 0 0 auto; }
 .brand-mark img { display: block; width: 100%; height: 100%; }
 .brand div { display: grid; }
 .brand small, .sidebar-user small { color: var(--muted); font-size: .72rem; margin-top: 3px; }
-.sidebar nav { display: grid; gap: 6px; }
+.sidebar nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 6px; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #31513c transparent; }
+.sidebar nav::-webkit-scrollbar { width: 7px; }
+.sidebar nav::-webkit-scrollbar-thumb { border-radius: 999px; background: #31513c; }
 .nav-item { border: 0; border-radius: 10px; background: transparent; color: #9eb4a5; padding: 11px 12px; text-align: left; display: flex; gap: 12px; align-items: center; }
 .nav-item:hover { background: #0d2115; color: white; }
 button:not(:disabled):hover { cursor: pointer; }
@@ -63,7 +65,7 @@ button:not(:disabled):hover { cursor: pointer; }
 .sidebar-user div:nth-child(2) { display: grid; min-width: 0; }
 .sidebar-user strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .icon-button, .notification-button { border: 1px solid var(--border); background: #0b1b12; color: #d7e9dc; border-radius: 10px; min-width: 38px; height: 38px; }
-.main-content { width: min(1500px, 100%); padding: 28px clamp(18px, 3vw, 48px) 60px; overflow: hidden; }
+.main-content { width: min(1500px, 100%); min-width: 0; padding: 28px clamp(18px, 3vw, 48px) 60px; overflow: hidden; }
 .mobile-nav { display: none; }
 
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
@@ -954,117 +956,18 @@ button.alert-row { appearance: none; font: inherit; }
   }
 }
 
-/* Smart Finance 0.4.0 — leitura de comprovantes somente no aplicativo móvel */
-.receipt-scan-input {
-  display: none;
-}
 
-.receipt-scan-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-}
-
-.receipt-scan-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 6000;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgb(0 0 0 / 78%);
-  backdrop-filter: blur(7px);
-}
-
-.receipt-scan-progress-card {
-  width: min(390px, 100%);
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 26px;
-  border: 1px solid #2f6942;
-  border-radius: 20px;
-  background: linear-gradient(155deg, #12281b, #07130d);
-  box-shadow: 0 28px 90px rgb(0 0 0 / 55%);
-  text-align: center;
-}
-
-.receipt-scan-progress-card p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.5;
-  font-size: .86rem;
-}
-
-.receipt-scan-progress-card small {
-  color: #86efac;
-  font-variant-numeric: tabular-nums;
-}
-
-.receipt-scan-icon {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  border-radius: 17px;
-  background: rgb(34 197 94 / 14%);
-  color: #86efac;
-  font-size: 1.8rem;
-}
-
-.receipt-scan-progress {
-  width: 100%;
-  height: 9px;
+.file-action-button {
+  position: relative;
   overflow: hidden;
-  border-radius: 999px;
-  background: #041008;
-  border: 1px solid var(--border);
+  cursor: pointer;
 }
 
-.receipt-scan-progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #15803d, #4ade80);
-  transition: width .2s ease;
-}
-
-.receipt-scan-note {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid rgb(34 197 94 / 32%);
-  border-radius: 12px;
-  background: rgb(34 197 94 / 9%);
-  color: #d9fbe3;
-}
-
-.receipt-scan-note span,
-.receipt-scan-note small {
-  color: #a9cbb4;
-  line-height: 1.45;
-}
-
-@media (max-width: 590px) {
-  .header-actions .receipt-scan-button {
-    order: 3;
-    flex: 1 1 calc(50% - 5px);
-  }
-
-  .header-actions > .primary-button.compact {
-    order: 4;
-    flex: 1 1 calc(50% - 5px);
-  }
-
-  .header-actions > .month-input {
-    flex: 1 1 150px;
-  }
-
-  .receipt-scan-progress-card {
-    padding: 22px 18px;
-  }
+.file-action-button input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* Smart Finance 0.4.0 — todos os botoes de acao no verde escolhido */
@@ -1975,132 +1878,41 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
 }
 
 
-/* Smart Finance 0.4.0 — correções de importação e tela de acesso */
+/* Smart Finance 0.4.0 — tela de acesso sem corte em janelas baixas */
 .auth-screen {
   width: 100%;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  align-items: center;
 }
-
-/* Em telas baixas, o cartão mantém o conteúdo inteiro e a página passa a rolar,
-   em vez de esconder a parte inferior do painel promocional. */
 @media (min-width: 901px) {
   .auth-frame {
-    min-height: min(760px, max(680px, calc(100dvh - 48px)));
+    min-height: min(760px, max(680px, calc(100dvh - 48px))) !important;
   }
 }
-
 .auth-links {
   width: 100%;
   display: flex !important;
-  align-items: center;
-  justify-content: space-between;
+  align-items: center !important;
+  justify-content: space-between !important;
   flex-wrap: nowrap !important;
-  gap: 12px;
+  gap: 12px !important;
 }
-.auth-links button {
-  min-width: 0;
-  white-space: nowrap;
-}
-
+.auth-links button { min-width: 0; white-space: nowrap; }
 @media (max-width: 590px) {
   .auth-screen {
     min-height: 100dvh;
-    padding:
-      max(10px, env(safe-area-inset-top))
-      10px
-      max(10px, env(safe-area-inset-bottom));
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)) !important;
   }
-  .auth-frame {
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-  }
-  .auth-panel {
-    width: 100%;
-    min-width: 0;
-    padding: 24px 19px;
-  }
-  .auth-links {
-    display: flex !important;
-    justify-content: space-between !important;
-    flex-wrap: nowrap !important;
-    gap: 8px;
-  }
-  .auth-links button {
-    font-size: clamp(.72rem, 3.25vw, .82rem);
-  }
+  .auth-frame { width: 100%; max-width: 100%; }
+  .auth-panel { width: 100%; min-width: 0; }
+  .auth-links { gap: 8px !important; }
+  .auth-links button { font-size: clamp(.72rem, 3.25vw, .82rem) !important; }
 }
-
 @media (min-width: 901px) and (max-height: 720px) {
-  .auth-hero {
-    padding: 32px 40px;
-    gap: 24px;
-  }
-  .auth-hero-copy h1 {
-    font-size: clamp(2.7rem, 4.2vw, 4rem);
-  }
-  .auth-feature-grid article {
-    min-height: 82px;
-  }
-  .auth-panel {
-    padding: 30px 42px;
-  }
-}
-
-/* Ações no modal de detalhes da despesa no celular */
-.expense-detail-actions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-.expense-detail-actions > button,
-.expense-detail-actions > label {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding-inline: 12px;
-  text-align: center;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.expense-detail-attachment-button {
-  position: relative;
-  overflow: hidden;
-}
-.expense-detail-attachment-button input[type='file'] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-.expense-detail-close-row {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 12px;
-}
-.expense-detail-close-row .secondary-button {
-  min-height: 42px;
-}
-@media (max-width: 620px) {
-  .expense-detail-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .expense-detail-actions > button,
-  .expense-detail-actions > label {
-    min-height: 50px;
-  }
-  .expense-detail-close-row .secondary-button {
-    width: 100%;
-  }
+  .auth-hero { padding: 32px 40px !important; gap: 24px !important; }
+  .auth-hero-copy h1 { font-size: clamp(2.7rem, 4.2vw, 4rem) !important; }
+  .auth-feature-grid article { min-height: 82px !important; }
+  .auth-panel { padding: 30px 42px !important; }
 }
 
 
@@ -2367,147 +2179,11 @@ tr[data-expense-id] > td.row-actions > label.attachment-button > input[type='fil
   .statement-list > div { grid-template-columns:auto 1fr auto; }
   .statement-list > div > :last-child { grid-column:2/-1; }
 }
-
-/* Smart Finance 0.5.0 — recursos nativos mobile */
-.app-lock-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:var(--background,#0d1518); }
-.app-lock-card { width:min(390px,100%); display:grid; gap:14px; text-align:center; }
-.app-lock-pin { text-align:center; font-size:1.25rem; letter-spacing:.18em; }
-.mobile-security-panel { display:grid; gap:12px; }
-.mobile-quick-add { position:fixed; right:18px; bottom:calc(78px + env(safe-area-inset-bottom)); z-index:60; display:grid; justify-items:end; gap:9px; }
-.mobile-quick-menu { display:grid; gap:7px; padding:8px; border:1px solid var(--border); border-radius:14px; background:var(--panel,var(--surface)); box-shadow:0 14px 42px rgb(0 0 0 / 25%); }
-.mobile-quick-menu button { white-space:nowrap; }
-.mobile-fab { width:52px; height:52px; border:0; border-radius:50%; font-size:1.6rem; font-weight:700; cursor:pointer; color:white; background:var(--accent,#22a57a); box-shadow:0 10px 28px rgb(0 0 0 / 28%); }
-@media (min-width:901px) { .mobile-quick-add { display:none; } }
 .advanced-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(3,minmax(145px,1fr)) auto; gap:8px; align-items:center; margin:10px 0 12px; padding:10px; }
 .advanced-filters input,.advanced-filters select { width:100%; }
 @media (max-width:900px){ .advanced-filters{grid-template-columns:repeat(2,minmax(0,1fr));} }
 @media (max-width:590px){ .advanced-filters{grid-template-columns:1fr;} }
 
 
-/* Smart Finance 0.5.3 — ajustes visuais da navegação e visão geral */
-.brand-button {
-  width: 100%;
-  border: 0;
-  padding: 8px 8px 18px;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.brand-button:hover {
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  border-radius: 16px;
-}
-.brand-button > div {
-  min-width: 0;
-}
-.mobile-brand-button {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-}
-
-.global-search {
-  position: relative;
-  width: min(420px, 100%);
-  display: flex;
-  align-items: center;
-}
-.global-search-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted);
-  pointer-events: none;
-  font-size: .95rem;
-  line-height: 1;
-}
-.global-search input {
-  width: 100%;
-  padding-left: 38px;
-  min-height: 42px;
-}
-.sidebar-search,
-.mobile-global-search {
-  margin-bottom: 16px;
-}
-
-.dashboard-section-grid {
-  margin-top: 16px;
-}
-.summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  align-items: stretch;
-}
-.dashboard-insight-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-.chart-grid {
-  gap: 18px;
-  margin-top: 16px;
-  align-items: start;
-}
-.financial-health {
-  gap: 16px;
-}
-.health-metrics {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-}
-.health-metrics > span {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-}
-.health-metrics small,
-.insight-card small {
-  color: var(--muted);
-}
-.health-metrics strong {
-  font-size: 1.18rem;
-  line-height: 1.2;
-}
-.insight-card {
-  gap: 7px;
-}
-.progress-summary-list {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-}
-.progress-panel,
-.dashboard-category-panel {
-  min-height: 410px;
-}
-
-@media (max-width: 900px) {
-  .summary-grid,
-  .dashboard-insight-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 590px) {
-  .summary-grid,
-  .dashboard-insight-grid,
-  .health-metrics {
-    grid-template-columns: 1fr;
-  }
-  .brand-button {
-    padding-bottom: 14px;
-  }
-}
+/* Smart Finance 0.5.3 — ajustes visuais */
+.brand-button{width:100%;border:0;padding:8px 8px 18px;background:transparent;color:inherit;text-align:left;display:flex;align-items:center;gap:12px}.brand-button:hover{background:color-mix(in srgb,var(--surface) 72%,transparent);border-radius:16px}.brand-button>div{min-width:0}.mobile-brand-button{min-width:0;flex:1;border:0;padding:0;background:transparent;color:inherit;text-align:left}.global-search{position:relative;width:min(420px,100%);display:flex;align-items:center}.global-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:.95rem;line-height:1}.global-search input{width:100%;padding-left:38px;min-height:42px}.sidebar-search,.mobile-global-search{margin-bottom:16px}.dashboard-section-grid{margin-top:16px}.summary-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;align-items:stretch}.dashboard-insight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.chart-grid{gap:18px;margin-top:16px;align-items:start}.financial-health{gap:16px}.health-metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.health-metrics>span{min-width:0;display:grid;gap:5px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}.health-metrics small,.insight-card small{color:var(--muted)}.health-metrics strong{font-size:1.18rem;line-height:1.2}.insight-card{gap:7px}.progress-summary-list{display:grid;gap:14px;margin-top:14px}.progress-panel,.dashboard-category-panel{min-height:410px}@media (max-width:900px){.summary-grid,.dashboard-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:590px){.summary-grid,.dashboard-insight-grid,.health-metrics{grid-template-columns:1fr}.brand-button{padding-bottom:14px}}

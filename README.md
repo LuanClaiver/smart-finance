@@ -1,55 +1,47 @@
-# Smart Finance 0.4.4
-
-## Alterações da versão 0.4.4
-- Corrigida a importação de bancos `.db` no APK. O seletor de arquivos agora permite escolher o banco mesmo em aparelhos que não reconhecem o MIME de SQLite.
-- Antes de substituir o banco, o APK valida o `integrity_check` do SQLite e confirma a presença das tabelas essenciais do Smart Finance.
-- A substituição do banco ficou mais segura: usa cópia temporária, sincronização em disco, arquivo de rollback e localização alternativa do banco interno quando o Android não fornece uma URL de arquivo utilizável.
-- O backup preventivo da importação passa a usar o armazenamento privado do aplicativo como alternativa quando o Android bloquear a pasta Documentos.
-- Compatibilidade validada com o arquivo `smart-finance-2026-08-08-17-41-50.db` fornecido para teste.
-
-## Alterações da versão 0.4.3
-- Toda despesa passa a pertencer ao **mês do vencimento**, independentemente da forma de pagamento ou do mês em que foi cadastrada.
-- Exemplo validado: uma despesa cadastrada em agosto com vencimento em `08/09/2026` não aparece em agosto e aparece em setembro de 2026.
-- Painel, relatórios, alertas, versão Windows e aplicativo Android utilizam a mesma regra.
-- Migração automática corrige os lançamentos já existentes para o mês indicado em `due_date`.
-
-## Alterações da versão 0.4.2
-- Campos monetários usam formato brasileiro: ao digitar `1000`, o campo é normalizado para `1.000,00`; centavos podem ser informados com vírgula ou ponto e são exibidos sempre com duas casas.
-- Ajuste aplicado a rendas, despesas, contas, cartões, empréstimos e parcelas, no computador e no aplicativo mobile.
-- Login reforçado para aceitar nome de usuário ou e-mail; o administrador padrão também pode entrar com `Admin` / `1234` ou `admin@smartfinance.com` / `1234`.
+# Smart Finance 0.5.3 — Motor Financeiro
 
 Aplicativo financeiro local desenvolvido por **Luan Claiver — 2026**.
 
+## Correção da versão 0.5.3
+
+- Corrigida a incompatibilidade de login depois de importar um banco do APK no computador.
+- O backend passa a validar tanto **PBKDF2** (formato usado no APK) quanto **scrypt** (formato usado nas versões desktop anteriores).
+- Novas senhas no Windows passam a ser gravadas em PBKDF2, o mesmo formato do Android.
+- O APK também consegue validar contas antigas em scrypt e converte o hash automaticamente depois do primeiro login correto.
+- O login continua funcionando por **usuário ou e-mail**, inclusive com o alias `Admin` para o administrador padrão.
+- Nenhuma senha é redefinida durante a importação; a compatibilidade ocorre sobre os hashes já existentes.
+- As correções de inicialização e backup local da 0.5.1 foram preservadas.
+
+## Principais novidades da versão 0.5.0
+
+- **Cartões e faturas automáticas:** compras no cartão são organizadas pela data da compra, fechamento e vencimento. Parcelamentos geram as parcelas futuras e cada parcela aparece no mês em que realmente vence.
+- **Regra única de vencimento:** toda despesa, de qualquer forma de pagamento, pertence ao mês do vencimento. Data da compra, vencimento e pagamento ficam separadas.
+- **Recorrências editáveis:** despesas recorrentes podem ser interrompidas pela própria despesa, removendo somente os lançamentos futuros pendentes. Rendas recorrentes também podem ser criadas e interrompidas.
+- **Planejamento:** projeção de 3, 6 ou 12 meses, orçamentos mensais por categoria, metas financeiras e central de parcelas/compromissos futuros.
+- **Dashboard inteligente:** comparação com o mês anterior, percentual de renda comprometida, próximas contas, cartões, maior categoria e avisos de orçamento.
+- **Contas e conciliação:** saldo calculado x saldo informado, registro de conferência e transferências entre contas sem transformar a transferência em renda/despesa.
+- **Importação de extratos:** leitura de CSV e OFX, pré-visualização, classificação por regras memorizadas e identificadores para reduzir duplicações.
+- **Pesquisa e filtros:** busca global e filtros avançados em despesas e rendas.
+- **Sincronização local PC ↔ APK:** o PC continua exportando o pacote completo para o celular; o APK também gera `.sfsync` para mesclar as alterações de volta ao computador, com backup preventivo e deduplicação.
+- **APK mais seguro:** PIN, biometria quando disponível, bloqueio automático ao voltar ao aplicativo, notificações locais e atalhos de lançamento rápido.
+- **Backup reforçado:** importação de `.db` com validação de integridade/estrutura, resumo do conteúdo antes da substituição e backup de segurança.
+
+## Compatibilidade preservada
+
+- Login por **nome de usuário ou e-mail**; administrador padrão: `Admin` / `1234` ou `admin@smartfinance.com` / `1234` em bancos novos.
+- Bancos das versões 0.4.x são migrados automaticamente para a estrutura 0.5.0.
+- Campos monetários aceitam valores inteiros ou com centavos e exibem o padrão brasileiro.
+- O banco SQLite, comprovantes e backups continuam locais.
+
 ## Componentes
 
-- `backend/`: API FastAPI, SQLite, backups, relatórios e transferência de dados.
-- `frontend/`: interface React da versão para computador.
+- `backend/`: FastAPI, SQLite, backups, relatórios, planejamento, sincronização e importações.
+- `frontend/`: interface React para computador.
 - `mobile-app/`: aplicativo Android independente com Capacitor e SQLite.
-- `branding/`: arquivos editáveis e exportações da identidade visual.
-- `scripts/mobile/`: ajustes nativos aplicados durante a geração Android.
-- `.github/workflows/`: criação da chave e compilação assinada do APK.
+- `scripts/mobile/`: ajustes nativos aplicados durante a geração Android, incluindo biometria e exportação de arquivos.
+- `.github/workflows/`: geração da chave e compilação assinada do APK.
 
-## Funcionalidades principais
-
-- Controle de rendas, despesas, contas, cartões e empréstimos.
-- Relatórios financeiros em PDF.
-- Login, cadastro, recuperação de senha e administração de usuários.
-- Temas claro e escuro.
-- Backup diário automático.
-- Exportação e importação do banco SQLite.
-- Transferência de dados do computador para o celular por ZIP.
-- Importação móvel com opção de mesclar ou substituir os dados e backup preventivo.
-- Comprovantes anexados às despesas e leitura por câmera no Android.
-- Faturas de cartão passam a impactar despesas, painel e relatórios no mês do vencimento.
-- A aba Cartões usa o mesmo mês de vencimento da aba Despesas, evitando divergência entre as telas.
-
-## Interface
-
-A tela de acesso e os fundos seguem a organização visual adotada no Smart Notes, mantendo os botões e destaques na identidade azul, índigo e roxa do Smart Finance.
-
-Nas tabelas de **Rendas** e **Despesas**, as ações permanecem alinhadas em posições fixas. Os controles usam o estilo leve em texto, sem blocos preenchidos, com realce no `hover` e cursor de mão.
-
-## Desenvolvimento da versão web
+## Desenvolvimento web
 
 ```bash
 cd frontend
@@ -63,11 +55,11 @@ Compilação:
 npm run build
 ```
 
-O backend pode ser iniciado pelo arquivo `Iniciar Smart Finance.bat` ou diretamente com as dependências de `backend/requirements.txt`.
+O backend pode ser iniciado por `Iniciar Smart Finance.bat` ou diretamente com as dependências de `backend/requirements.txt`.
 
 ## Aplicativo Android
 
-O projeto mobile está em `mobile-app/`. A geração oficial usa o fluxo **02 - Gerar APK Android** em `.github/workflows` e aplica os recursos nativos definidos em `scripts/mobile/`.
+O projeto mobile está em `mobile-app/`. A geração oficial usa o fluxo **02 - Gerar APK Android** no GitHub Actions.
 
 Segredos exigidos no GitHub:
 
@@ -76,7 +68,7 @@ Segredos exigidos no GitHub:
 - `ANDROID_KEY_PASSWORD`
 - `ANDROID_KEYSTORE_BASE64`
 
-Use **01 - Gerar chave Android** apenas na configuração inicial. Preserve a mesma chave para todas as atualizações futuras.
+Use **01 - Gerar chave Android** somente na configuração inicial e preserve a mesma chave nas atualizações.
 
 ## Armazenamento
 
@@ -88,10 +80,10 @@ backend/storage/
 backend/backups/
 ```
 
-No Android, o banco fica no armazenamento privado do aplicativo. Arquivos exportados são salvos na área pública escolhida pelo sistema.
+No Android, o banco fica no armazenamento privado do aplicativo. Exportações são compartilhadas ou salvas na área pública escolhida pelo sistema.
 
 ## Scripts do Windows
 
 - `Iniciar Smart Finance.bat`: executa o sistema local.
 - `ENVIAR REPOSITORIO COMPLETO.bat`: primeiro envio ao GitHub.
-- `ATUALIZAR GITHUB.bat`: publica atualizações futuras.
+- `Atualizar GitHub.bat`: publica atualizações futuras.

@@ -54,7 +54,12 @@ class AccountInput(BaseModel):
     name: str
     account_type: str = "digital"
     initial_balance: Decimal = Decimal("0")
+    reported_balance: Decimal | None = None
     is_active: bool = True
+
+
+class AccountReconcileInput(BaseModel):
+    reported_balance: Decimal
 
 
 class CategoryInput(BaseModel):
@@ -85,13 +90,14 @@ class IncomeInput(BaseModel):
     account_id: int | None = None
     category_id: int | None = None
     notes: str = ""
+    external_id: str | None = None
 
 
 class ExpenseInput(BaseModel):
     description: str
     amount: Decimal
     purchase_date: date
-    due_date: date
+    due_date: date | None = None
     paid_date: date | None = None
     category_id: int | None = None
     expense_type: str = "variable"
@@ -103,6 +109,8 @@ class ExpenseInput(BaseModel):
     card_id: int | None = None
     installments: int = Field(default=1, ge=1, le=360)
     list_month: str | None = None
+    auto_card_due: bool = True
+    external_id: str | None = None
 
     @field_validator("list_month")
     @classmethod
@@ -127,7 +135,30 @@ class RecurringExpenseInput(BaseModel):
     account_id: int | None = None
     start_month: str
     end_month: str | None = None
-    months_to_generate: int = Field(default=12, ge=1, le=120)
+    months_to_generate: int = Field(default=24, ge=1, le=120)
+    active: bool = True
+
+    @field_validator("start_month", "end_month")
+    @classmethod
+    def validate_month(cls, value: str | None):
+        if value is None:
+            return value
+        if len(value) != 7 or value[4] != "-":
+            raise ValueError("Use o formato AAAA-MM")
+        return value
+
+
+class RecurringIncomeInput(BaseModel):
+    description: str
+    amount: Decimal
+    expected_day: int = Field(ge=1, le=31)
+    category_id: int | None = None
+    account_id: int | None = None
+    notes: str = ""
+    start_month: str
+    end_month: str | None = None
+    months_to_generate: int = Field(default=24, ge=1, le=120)
+    active: bool = True
 
     @field_validator("start_month", "end_month")
     @classmethod
@@ -151,11 +182,7 @@ class LoanInput(BaseModel):
 
 
 class LoanUpdateInput(LoanInput):
-    """Dados editáveis do empréstimo completo.
-
-    Parcelas já pagas são preservadas. As parcelas pendentes têm valor e
-    vencimento recalculados a partir destes dados.
-    """
+    """Dados editáveis do empréstimo completo."""
 
 
 class LoanInstallmentInput(BaseModel):
@@ -164,6 +191,42 @@ class LoanInstallmentInput(BaseModel):
     status: str = "pending"
     paid_date: date | None = None
     account_id: int | None = None
+
+
+class BudgetInput(BaseModel):
+    month: str
+    category_id: int
+    limit_amount: Decimal = Field(gt=0)
+
+    @field_validator("month")
+    @classmethod
+    def validate_month(cls, value: str):
+        if len(value) != 7 or value[4] != "-":
+            raise ValueError("Use o formato AAAA-MM")
+        return value
+
+
+class GoalInput(BaseModel):
+    name: str
+    target_amount: Decimal = Field(gt=0)
+    current_amount: Decimal = Decimal("0")
+    target_date: date | None = None
+    status: str = "active"
+
+
+class InternalTransferInput(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: Decimal = Field(gt=0)
+    transfer_date: date
+    notes: str = ""
+
+
+class ImportRuleInput(BaseModel):
+    pattern: str = Field(min_length=2, max_length=160)
+    kind: str = "expense"
+    category_id: int | None = None
+    payment_method: str = "pix"
 
 
 class AdminUserUpdate(BaseModel):

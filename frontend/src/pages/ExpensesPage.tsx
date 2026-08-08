@@ -27,6 +27,7 @@ function payloadFromExpense(item: Expense, changes: Partial<Expense> = {}) {
     card_id: value.card_id ?? null,
     installments: 1,
     list_month: value.due_date?.slice(0, 7) || value.list_month || value.billing_month,
+    external_id: value.external_id || null,
   }
 }
 
@@ -105,6 +106,10 @@ export default function ExpensesPage() {
   const [fullscreenAttachment, setFullscreenAttachment] = useState(false)
   const [error, setError] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
+  const [filterText, setFilterText] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [filterPayment, setFilterPayment] = useState('all')
   const requestVersion = useRef(0)
 
   const loadExpenses = useCallback(async (selectedMonth: string) => {
@@ -227,7 +232,7 @@ export default function ExpensesPage() {
 
   function openEdit(item: Expense) {
     setEditing(item)
-    setFixed(false)
+    setFixed(Boolean(item.recurrence_id))
     setPaymentMethod(item.card_id ? 'credit_card' : item.payment_method || 'pix')
     setExpenseStatus(item.status || 'pending')
     setPaidDate(item.paid_date || '')
@@ -266,6 +271,9 @@ export default function ExpensesPage() {
           status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
           card_id: cardId, installments: 1, list_month: dueDate.slice(0, 7),
         }) })
+        if (editing.recurrence_id && !fixed) {
+          await api(`/recurring-expenses/${editing.recurrence_id}/stop?from_month=${month}&remove_future=true`, { method: 'POST' })
+        }
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
         closeForm()
         await loadExpenses(month)
@@ -305,6 +313,29 @@ export default function ExpensesPage() {
       const message = err instanceof Error ? err.message : 'Erro ao salvar'
       setError(message)
       toast.error('Não foi possível salvar a despesa', message)
+    }
+  }
+
+  async function stopRecurrence(item: Expense) {
+    if (!item.recurrence_id) return
+    const confirmed = await confirmAction({
+      title: 'Parar despesa recorrente?',
+      message: 'Os próximos lançamentos pendentes desta despesa serão removidos.',
+      detail: 'O mês atual e despesas já pagas são preservados. Você pode continuar editando apenas esta ocorrência.',
+      confirmLabel: 'Parar recorrência',
+      tone: 'warning',
+    })
+    if (!confirmed) return
+    try {
+      const result = await api<{ removed: number }>(`/recurring-expenses/${item.recurrence_id}/stop?from_month=${month}&remove_future=true`, { method: 'POST' })
+      setFixed(false)
+      if (editing?.id === item.id) setEditing({ ...item, recurrence_id: undefined })
+      await loadExpenses(month)
+      toast.success('Recorrência desativada', `${result.removed || 0} lançamento(s) futuro(s) pendente(s) foram removidos.`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao parar recorrência'
+      setError(message)
+      toast.error('Não foi possível parar a recorrência', message)
     }
   }
 
@@ -360,19 +391,30 @@ export default function ExpensesPage() {
     }
   }
 
+  const normalizedFilter = filterText.trim().toLocaleLowerCase('pt-BR')
+  const filteredItems = items.filter((item) => {
+    if (normalizedFilter && !`${item.description} ${item.merchant || ''} ${item.notes || ''}`.toLocaleLowerCase('pt-BR').includes(normalizedFilter)) return false
+    if (filterStatus !== 'all' && item.status !== filterStatus) return false
+    if (filterCategory !== 'all' && String(item.category_id || '') !== filterCategory) return false
+    const effectivePayment = item.card_id ? 'credit_card' : (item.payment_method || '')
+    if (filterPayment !== 'all' && effectivePayment !== filterPayment) return false
+    return true
+  })
+
   return <>
     <PageHeader title="Despesas" subtitle="Gastos fixos, variáveis, cartões e parcelamentos" actions={<><input className="month-input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /><button className="primary-button compact" onClick={openNew}>+ Nova despesa</button></>} />
     {showForm && <ModalCard onClose={closeForm} label={editing ? `Editar despesa ${editing.description}` : 'Nova despesa'} wide><form id="expense-form" key={editing?.id || 'new-expense'} className="panel form-grid modal-form" onSubmit={submit}>
       <h3 className="form-title wide">{editing ? 'Editar despesa ou pagamento' : 'Nova despesa'}</h3>
       {!editing && <label className="toggle-line wide"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Criar como gasto fixo mensal</label>}
+      {editing?.recurrence_id && <div className="recurrence-control wide"><label className="toggle-line"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Manter despesa recorrente</label><small>Desmarque e salve para remover os lançamentos futuros pendentes. A ocorrência atual permanece.</small></div>}
       <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || ''} /></label>
       <label>Valor<MoneyInput name="amount" required defaultValue={editing ? Number(editing.amount) : ''} /></label>
       <label>Categoria<select name="category_id" defaultValue={editing?.category_id || ''}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>Estabelecimento<input name="merchant" defaultValue={editing?.merchant || ''} /></label>
       <label>Forma de pagamento<select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option>{!fixed && <option value="credit_card">Cartão de crédito</option>}</select></label>
       <label>Conta<select name="account_id" defaultValue={editing?.account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      {!fixed ? <>
-        <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || `${month}-10`} required /></label>
+      {(!fixed || editing) ? <>
+        {paymentMethod !== 'credit_card' ? <label>Vencimento<input name="due_date" type="date" defaultValue={editing?.due_date || `${month}-10`} required /></label> : <div className="card-due-auto"><strong>Vencimento automático</strong><small>O Smart Finance calcula a fatura pela data da compra, fechamento e vencimento configurados no cartão.</small><input name="due_date" type="hidden" value={editing?.due_date || `${month}-10`} /></div>}
         {paymentMethod === 'credit_card' && <>
           <label>Data da compra<input name="purchase_date" type="date" defaultValue={editing?.purchase_date || today()} required /></label>
           <label>Cartão<select name="card_id" defaultValue={editing?.card_id || ''} required><option value="">Selecione o cartão</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -414,6 +456,7 @@ export default function ExpensesPage() {
           {selectedExpense.card_id && <div><dt>Data da compra</dt><dd>{formatDate(selectedExpense.purchase_date)}</dd></div>}
           {selectedExpense.paid_date && <div><dt>Data do pagamento</dt><dd>{formatDate(selectedExpense.paid_date)}</dd></div>}
           {selectedExpense.installment_number && <div><dt>Parcela</dt><dd>{selectedExpense.installment_number}/{selectedExpense.total_installments}</dd></div>}
+          {selectedExpense.recurrence_id && <div><dt>Recorrência</dt><dd>Despesa recorrente mensal</dd></div>}
         </dl>
         {selectedExpense.notes && <div className="expense-detail-notes"><strong>Observações</strong><p>{selectedExpense.notes}</p></div>}
         <section className="expense-attachment-preview">
@@ -434,6 +477,13 @@ export default function ExpensesPage() {
     {error && <div className="form-error">{error}</div>}
     {loadingItems && <div className="list-refresh-indicator"><span></span> Atualizando despesas...</div>}
     <div className="expense-deadline-legend" aria-label="Legenda dos vencimentos"><span className="paid">Pago</span><span className="soon">Vence em até 7 dias</span><span className="overdue">Vencido</span></div>
+    <div className="advanced-filters panel" aria-label="Filtros avançados de despesas">
+      <input value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Buscar descrição, estabelecimento ou observação" />
+      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}><option value="all">Todos os status</option><option value="pending">Pendentes</option><option value="paid">Pagas</option></select>
+      <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}><option value="all">Todas as categorias</option>{categories.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}</select>
+      <select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value)}><option value="all">Todas as formas</option><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option><option value="credit_card">Cartão de crédito</option></select>
+      {(filterText || filterStatus !== 'all' || filterCategory !== 'all' || filterPayment !== 'all') && <button type="button" className="secondary-button compact" onClick={() => { setFilterText(''); setFilterStatus('all'); setFilterCategory('all'); setFilterPayment('all') }}>Limpar filtros</button>}
+    </div>
     <section className="table-panel">
       <table className="expenses-table">
         <thead>
@@ -450,7 +500,7 @@ export default function ExpensesPage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => <tr
+          {filteredItems.map((item) => <tr
             key={item.id}
             data-expense-id={item.id}
             tabIndex={0}
@@ -464,7 +514,7 @@ export default function ExpensesPage() {
               }
             }}
           >
-            <td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}{item.attachment_path && <small className="block expense-has-attachment">📎 Comprovante anexado</small>}</div></td>
+            <td><div className="expense-description"><strong>{expenseDescription(item)}</strong>{item.recurrence_id && <small className="recurrence-badge">↻ Recorrente</small>}{item.installment_number && <small className="block">Parcela {item.installment_number}/{item.total_installments}</small>}{item.attachment_path && <small className="block expense-has-attachment">📎 Comprovante anexado</small>}</div></td>
             <td>{item.due_date}</td>
             <td>{item.card_id ? 'Cartão' : item.expense_type === 'fixed' ? 'Fixa' : 'Variável'}</td>
             <td>{money(Number(item.amount))}</td>
@@ -475,7 +525,7 @@ export default function ExpensesPage() {
                 : <span className="table-action-placeholder" aria-label="Despesa já paga">—</span>}
             </td>
             <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
-              <button type="button" className="table-action-button" onClick={() => openEdit(item)}>Editar</button>
+              <button type="button" className="table-action-button" onClick={() => openEdit(item)}>Editar</button>{item.recurrence_id && <button type="button" className="table-action-button recurrence-stop-action" onClick={() => stopRecurrence(item)}>Parar</button>}
             </td>
             <td className="expense-action-cell" onClick={(event) => event.stopPropagation()}>
               <label className="table-action-button attachment-button" title={item.attachment_path ? 'Substituir comprovante' : 'Anexar comprovante'}>
@@ -489,7 +539,7 @@ export default function ExpensesPage() {
           </tr>)}
         </tbody>
       </table>
-      {items.length === 0 && !loadingItems && <EmptyState text="Nenhuma despesa neste mês." />}
+      {filteredItems.length === 0 && !loadingItems && <EmptyState text={items.length ? "Nenhuma despesa corresponde aos filtros." : "Nenhuma despesa neste mês."} />}
     </section>
 
   </>
