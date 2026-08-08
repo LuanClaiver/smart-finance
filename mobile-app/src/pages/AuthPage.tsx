@@ -82,7 +82,7 @@ export default function AuthPage({ onAuthenticated, theme, onToggleTheme }: Prop
       <section className="auth-hero">
         <div className="auth-version-badge">
           <img src="/icon.svg" alt="" />
-          <span>Smart Finance <b>0.4.1</b></span>
+          <span>Smart Finance <b>0.4.3</b></span>
         </div>
 
         <div className="auth-hero-copy">
@@ -102,7 +102,7 @@ export default function AuthPage({ onAuthenticated, theme, onToggleTheme }: Prop
         <div className="auth-brand-row">
           <div className="auth-brand-copy">
             <img src="/icon.svg" alt="Logo Smart Finance" />
-            <div><strong>Smart Finance</strong><span>Versão 0.4.1</span></div>
+            <div><strong>Smart Finance</strong><span>Versão 0.4.3</span></div>
           </div>
           <button type="button" className="theme-toggle auth-theme-toggle" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}>
             {theme === 'dark' ? '☀️' : '🌙'}

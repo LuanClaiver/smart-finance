@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import MoneyInput from '../components/MoneyInput'
 import { api, jsonBody, money, today } from '../services/api'
 import { readNavigationTarget, scrollToTarget } from '../services/navigation'
 import { confirmAction } from '../services/confirm'
@@ -165,11 +166,11 @@ export default function LoansPage() {
     {showForm && <ModalCard onClose={closeLoanForm} label={editingLoan ? `Editar empréstimo ${editingLoan.creditor}` : 'Novo empréstimo'} wide><form id="loan-form" key={editingLoan?.id || 'new-loan'} className="panel form-grid modal-form" onSubmit={submit}>
       <h3 className="form-title wide">{editingLoan ? `Editar empréstimo: ${editingLoan.creditor}` : 'Novo empréstimo'}</h3>
       <label>Instituição ou credor<input name="creditor" required defaultValue={editingLoan?.creditor || ''} /></label>
-      <label>Valor recebido<input name="principal_amount" type="number" step="0.01" min="0" required defaultValue={editingLoan ? Number(editingLoan.principal_amount) : ''} /></label>
-      <label>Valor total<input name="total_amount" type="number" step="0.01" min="0" required defaultValue={editingLoan ? Number(editingLoan.total_amount) : ''} /></label>
+      <label>Valor recebido<MoneyInput name="principal_amount" required defaultValue={editingLoan ? Number(editingLoan.principal_amount) : ''} /></label>
+      <label>Valor total<MoneyInput name="total_amount" required defaultValue={editingLoan ? Number(editingLoan.total_amount) : ''} /></label>
       <label>Juros (%)<input name="interest_rate" type="number" step="0.001" defaultValue={editingLoan ? Number(editingLoan.interest_rate) : 0} /></label>
       <label>Quantidade de parcelas<input name="installment_count" type="number" min="1" max="600" required defaultValue={editingLoan?.installment_count || ''} /></label>
-      <label>Valor da parcela<input name="installment_amount" type="number" step="0.01" min="0" required defaultValue={editingLoan ? Number(editingLoan.installment_amount) : ''} /></label>
+      <label>Valor da parcela<MoneyInput name="installment_amount" required defaultValue={editingLoan ? Number(editingLoan.installment_amount) : ''} /></label>
       <label>Primeiro vencimento<input name="first_due_date" type="date" defaultValue={editingLoan?.first_due_date || today()} required /></label>
       <label className="wide">Observações<textarea name="notes" rows={2} defaultValue={editingLoan?.notes || ''} /></label>
       {editingLoan && <p className="form-help wide">Parcelas já pagas serão preservadas. Valor e vencimento serão recalculados apenas nas parcelas pendentes.</p>}
@@ -194,7 +195,7 @@ export default function LoansPage() {
           <div className="progress"><span style={{ width: `${Math.round((paid / loan.installment_count) * 100)}%` }} /></div>
           <div className="installments">{loan.installments.map((item) => editingInstallment?.id === item.id ? <div key={item.id} data-installment-id={item.id} className="installment-editing target-row"><form ref={installmentFormRef} onSubmit={saveInstallment} className="installment-edit-form">
             <label>Vencimento<input name="due_date" type="date" required defaultValue={item.due_date} /></label>
-            <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={Number(item.amount)} /></label>
+            <label>Valor<MoneyInput name="amount" required defaultValue={Number(item.amount)} /></label>
             <label>Situação<select name="status" defaultValue={item.status}><option value="pending">Pendente</option><option value="paid">Paga</option></select></label>
             <label>Data do pagamento<input name="paid_date" type="date" defaultValue={item.paid_date || ''} /></label>
             <label>Conta<select name="account_id" defaultValue={item.account_id || ''}><option value="">Não informada</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>

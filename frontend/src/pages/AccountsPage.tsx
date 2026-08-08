@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import MoneyInput from '../components/MoneyInput'
 import { api, jsonBody, money } from '../services/api'
 import { confirmAction } from '../services/confirm'
 import { toast } from '../services/toast'
@@ -100,7 +101,7 @@ export default function AccountsPage() {
         <h3 className="form-title wide">{editing ? `Editar conta: ${editing.name}` : 'Nova conta'}</h3>
         <label>Nome<input name="name" placeholder="Ex.: Inter" required defaultValue={editing?.name || ''} /></label>
         <label>Tipo<select name="account_type" defaultValue={editing?.account_type || 'digital'}><option value="digital">Conta digital</option><option value="checking">Conta corrente</option><option value="savings">Poupança</option><option value="wallet">Carteira</option><option value="cash">Dinheiro</option></select></label>
-        <label>Saldo inicial<input name="initial_balance" type="number" step="0.01" defaultValue={editing ? Number(editing.initial_balance) : 0} /></label>
+        <label>Saldo inicial<MoneyInput name="initial_balance" allowNegative defaultValue={editing ? Number(editing.initial_balance) : 0} /></label>
         <div className="form-actions"><button className="primary-button">{editing ? 'Salvar alterações' : 'Salvar'}</button><button type="button" className="secondary-button" onClick={closeForm}>Cancelar</button></div>
       </form>
     </ModalCard>}

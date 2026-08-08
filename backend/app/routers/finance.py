@@ -252,12 +252,7 @@ def update_expense(item_id: int, payload: ExpenseInput, owner_id: int = Depends(
     for key, value in data.items():
         setattr(item, key, value)
     item.billing_month = card_billing_month(payload.purchase_date, card) if card else f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
-    if card:
-        item.list_month = f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
-    elif payload.list_month:
-        item.list_month = payload.list_month
-    elif not item.list_month:
-        item.list_month = item.billing_month
+    item.list_month = f"{payload.due_date.year:04d}-{payload.due_date.month:02d}"
     db.commit()
     db.refresh(item)
     return item

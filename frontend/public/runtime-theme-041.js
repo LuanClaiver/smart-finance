@@ -49,14 +49,14 @@
     if (!hero.querySelector('.runtime-auth-badge')) {
       const badge = document.createElement('div')
       badge.className = 'runtime-auth-badge'
-      badge.innerHTML = '<img src="/icon.svg" alt=""><span>Smart Finance <b>0.4.1</b></span>'
+      badge.innerHTML = '<img src="/icon.svg" alt=""><span>Smart Finance <b>0.4.3</b></span>'
       hero.prepend(badge)
     }
 
     if (!card.querySelector('.runtime-auth-brand')) {
       const brand = document.createElement('div')
       brand.className = 'runtime-auth-brand'
-      brand.innerHTML = '<div class="runtime-auth-brand-copy"><img src="/icon.svg" alt="Logo Smart Finance"><div><strong>Smart Finance</strong><small>Versão 0.4.1</small></div></div>'
+      brand.innerHTML = '<div class="runtime-auth-brand-copy"><img src="/icon.svg" alt="Logo Smart Finance"><div><strong>Smart Finance</strong><small>Versão 0.4.3</small></div></div>'
       brand.appendChild(themeButton())
       card.prepend(brand)
 

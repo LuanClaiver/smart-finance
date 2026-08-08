@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import Card, Expense, Income, LoanInstallment, RecurringExpense
@@ -34,13 +34,10 @@ def card_billing_month(purchase_date: date, card: Card) -> str:
 def expense_reference_month_filter(month: str):
     """Mês em que a despesa deve afetar a visão financeira.
 
-    Compras/faturas de cartão pertencem ao mês do vencimento. Os demais
-    lançamentos preservam o mês de referência escolhido pelo usuário.
+    Toda despesa pertence ao mês do vencimento, independentemente da forma de
+    pagamento ou do mês em que foi cadastrada.
     """
-    return or_(
-        and_(Expense.card_id.is_not(None), func.strftime("%Y-%m", Expense.due_date) == month),
-        and_(Expense.card_id.is_(None), func.coalesce(Expense.list_month, Expense.billing_month) == month),
-    )
+    return func.strftime("%Y-%m", Expense.due_date) == month
 
 
 def create_expense_installments(db: Session, owner_id: int, payload, card: Card | None) -> list[Expense]:
@@ -57,15 +54,9 @@ def create_expense_installments(db: Session, owner_id: int, payload, card: Card 
         purchase_date = add_months(payload.purchase_date, index) if count > 1 else payload.purchase_date
         due_date = add_months(payload.due_date, index) if count > 1 else payload.due_date
         billing_month = card_billing_month(purchase_date, card) if card else f"{due_date.year:04d}-{due_date.month:02d}"
-        if card:
-            # Cartão impacta o orçamento somente no mês em que a fatura vence.
-            list_month = f"{due_date.year:04d}-{due_date.month:02d}"
-        elif payload.list_month:
-            reference_year, reference_month = map(int, payload.list_month.split("-"))
-            reference_date = add_months(date(reference_year, reference_month, 1), index if count > 1 else 0)
-            list_month = f"{reference_date.year:04d}-{reference_date.month:02d}"
-        else:
-            list_month = billing_month
+        # A partir da 0.4.3, qualquer despesa impacta o orçamento no mês do
+        # vencimento, não no mês em que foi cadastrada ou selecionada na tela.
+        list_month = f"{due_date.year:04d}-{due_date.month:02d}"
         expense = Expense(
             owner_id=owner_id,
             description=payload.description,

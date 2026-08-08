@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import MoneyInput from '../components/MoneyInput'
 import { api, currentMonth, jsonBody, money, today } from '../services/api'
 import { readNavigationTarget, scrollToTarget } from '../services/navigation'
 import { confirmAction } from '../services/confirm'
@@ -152,7 +153,7 @@ export default function IncomesPage() {
       <form id="income-form" key={editing?.id || 'new-income'} className="panel form-grid modal-form" onSubmit={submit}>
         <h3 className="form-title wide">{editing ? 'Editar salário ou renda' : 'Nova renda'}</h3>
         <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || ''} /></label>
-        <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={editing ? Number(editing.amount_expected) : ''} /></label>
+        <label>Valor<MoneyInput name="amount" required defaultValue={editing ? Number(editing.amount_expected) : ''} /></label>
         <label>Data prevista<input name="expected_date" type="date" defaultValue={editing?.expected_date || `${month}-01`} required /></label>
         <label>Categoria<select name="category_id" defaultValue={editing?.category_id || ''}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Conta de destino<select name="account_id" defaultValue={editing?.account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

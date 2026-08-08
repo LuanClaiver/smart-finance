@@ -194,6 +194,30 @@ async function openDatabaseConnection(): Promise<SQLiteDBConnection> {
        AND list_month <> substr(due_date, 1, 7);
     INSERT OR REPLACE INTO app_meta(key, value) VALUES ('migration_0_4_1_card_due_month', 'applied');
   `)
+  // 0.4.2: mantém o alias de login "Admin" compatível com bancos antigos ou
+  // importados sem alterar a senha atual do administrador.
+  const canonicalAdmin = await database.query(
+    'SELECT id, username FROM users WHERE email = ? COLLATE NOCASE AND role = ? LIMIT 1',
+    ['admin@smartfinance.com', 'admin'],
+  )
+  const adminRow = canonicalAdmin.values?.[0]
+  if (adminRow && String(adminRow.username || '').toLowerCase() !== 'admin') {
+    const usernameOwner = await database.query('SELECT id FROM users WHERE username = ? COLLATE NOCASE LIMIT 1', ['Admin'])
+    const conflictId = Number(usernameOwner.values?.[0]?.id || 0)
+    if (!conflictId || conflictId === Number(adminRow.id)) {
+      await database.run('UPDATE users SET username = ? WHERE id = ?', ['Admin', Number(adminRow.id)], false)
+    }
+  }
+  await database.run('INSERT OR REPLACE INTO app_meta(key, value) VALUES (?, ?)', ['migration_0_4_2_admin_login_alias', 'applied'], false)
+  // 0.4.3: qualquer despesa passa a pertencer ao mês do vencimento. A
+  // atualização é idempotente e também corrige bancos importados/antigos.
+  await database.execute(`
+    UPDATE expenses
+       SET list_month = substr(due_date, 1, 7)
+     WHERE due_date IS NOT NULL
+       AND (list_month IS NULL OR list_month <> substr(due_date, 1, 7));
+    INSERT OR REPLACE INTO app_meta(key, value) VALUES ('migration_0_4_3_all_expenses_due_month', 'applied');
+  `)
   await seed(database)
   return database
 }

@@ -57,7 +57,7 @@ if not errorlevel 1 (
   exit /b 0
 )
 
-set "MESSAGE=Organizar projeto e atualizar Smart Finance 0.4.1"
+set "MESSAGE=Organizar projeto e atualizar Smart Finance 0.4.3"
 set /p "CUSTOM_MESSAGE=Descricao do envio [Enter para usar a padrao]: "
 if defined CUSTOM_MESSAGE set "MESSAGE=!CUSTOM_MESSAGE!"
 

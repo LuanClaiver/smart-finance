@@ -33,7 +33,7 @@ def get_alerts(db: Session, owner_id: int) -> list[dict]:
             "amount": float(item.amount),
             "target_id": item.id,
             "target_page": "expenses",
-            "month": item.list_month or item.billing_month,
+            "month": f"{item.due_date.year:04d}-{item.due_date.month:02d}",
         })
 
     installment_rows = db.execute(

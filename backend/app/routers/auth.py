@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,25 @@ from ..security import create_token, hash_secret, verify_secret
 from ..services.seed import create_default_categories
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticação"])
+
+
+def find_user_by_identifier(db: Session, identifier: str) -> User | None:
+    normalized = identifier.strip()
+    lowered = normalized.lower()
+    user = db.scalar(
+        select(User).where(
+            or_(
+                func.lower(User.username) == lowered,
+                func.lower(User.email) == lowered,
+            )
+        ).limit(1)
+    )
+    # Compatibilidade com bancos mobile/importados em que o administrador
+    # padrão tenha mantido o e-mail canônico, mas o campo username esteja
+    # inconsistente. "Admin" continua sendo um alias seguro do admin padrão.
+    if not user and lowered == "admin":
+        user = db.scalar(select(User).where(func.lower(User.email) == "admin@smartfinance.com").limit(1))
+    return user
 
 
 @router.post("/register")
@@ -45,8 +64,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    identifier = payload.identifier.strip()
-    user = db.scalar(select(User).where(or_(User.username == identifier, User.email == identifier.lower())))
+    user = find_user_by_identifier(db, payload.identifier)
     if not user or not user.is_active or not verify_secret(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário, e-mail ou senha inválidos")
     return {"token": create_token(user.id, user.role), "user": UserPublic.model_validate(user)}
@@ -69,8 +87,7 @@ def change_password(payload: ChangePasswordRequest, user: User = Depends(get_cur
 
 @router.post("/recover")
 def recover_password(payload: RecoverPasswordRequest, db: Session = Depends(get_db)):
-    identifier = payload.identifier.strip()
-    user = db.scalar(select(User).where(or_(User.username == identifier, User.email == identifier.lower())))
+    user = find_user_by_identifier(db, payload.identifier)
     if not user or not verify_secret(payload.recovery_key, user.recovery_key_hash):
         raise HTTPException(status_code=400, detail="Dados de recuperação inválidos")
     user.password_hash = hash_secret(payload.new_password)

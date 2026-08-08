@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import MoneyInput from '../components/MoneyInput'
 import { api, currentMonth, jsonBody, money } from '../services/api'
 import { confirmAction } from '../services/confirm'
 import { toast } from '../services/toast'
@@ -159,7 +160,7 @@ export default function CardsPage() {
         <label>Nome<input name="name" placeholder="Ex.: Inter" required defaultValue={editing?.name || ''} /></label>
         <label>Banco<input name="bank" defaultValue={editing?.bank || ''} /></label>
         <label>Bandeira<input name="brand" placeholder="Visa, Mastercard..." defaultValue={editing?.brand || ''} /></label>
-        <label>Limite<input name="credit_limit" type="number" step="0.01" min="0" defaultValue={editing ? Number(editing.credit_limit) : 0} /></label>
+        <label>Limite<MoneyInput name="credit_limit" required defaultValue={editing ? Number(editing.credit_limit) : 0} /></label>
         <label>Dia do fechamento<input name="closing_day" type="number" min="1" max="31" defaultValue={editing?.closing_day || 28} /></label>
         <label>Dia do vencimento<input name="due_day" type="number" min="1" max="31" defaultValue={editing?.due_day || 7} /></label>
         <label>Conta de pagamento<select name="payment_account_id" defaultValue={editing?.payment_account_id || ''}><option value="">Não informada</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

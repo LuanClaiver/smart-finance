@@ -38,12 +38,27 @@ export async function getSessionUser(token?: string | null): Promise<UserRow | n
   return queryOne<UserRow>('SELECT * FROM users WHERE id = ? AND is_active = 1', [userId])
 }
 
-export async function loginLocal(identifier: string, password: string): Promise<{ token: string; user: User }> {
+async function findLocalUserByIdentifier(identifier: string, activeOnly = false): Promise<UserRow | null> {
   const normalized = identifier.trim()
-  const row = await queryOne<UserRow>(
-    'SELECT * FROM users WHERE (username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE) AND is_active = 1 LIMIT 1',
-    [normalized, normalized.toLowerCase()],
+  const lowered = normalized.toLowerCase()
+  const activeClause = activeOnly ? ' AND is_active = 1' : ''
+  let row = await queryOne<UserRow>(
+    `SELECT * FROM users WHERE (username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE)${activeClause} LIMIT 1`,
+    [normalized, lowered],
   )
+  // O e-mail do administrador padrão é estável. Este fallback corrige bancos
+  // importados/antigos em que o username do admin tenha sido alterado ou perdido.
+  if (!row && lowered === 'admin') {
+    row = await queryOne<UserRow>(
+      `SELECT * FROM users WHERE email = ? COLLATE NOCASE${activeClause} LIMIT 1`,
+      ['admin@smartfinance.com'],
+    )
+  }
+  return row
+}
+
+export async function loginLocal(identifier: string, password: string): Promise<{ token: string; user: User }> {
+  const row = await findLocalUserByIdentifier(identifier, true)
   if (!row || !(await verifySecret(password, row.password_hash))) throw new Error('Usuário, e-mail ou senha inválidos')
   return { token: createSession(Number(row.id)), user: publicUser(row) }
 }
@@ -75,7 +90,7 @@ export async function recoverPassword(payload: Record<string, unknown>): Promise
   const identifier = String(payload.identifier || '').trim()
   const key = String(payload.recovery_key || '')
   const newPassword = String(payload.new_password || '')
-  const row = await queryOne<UserRow>('SELECT * FROM users WHERE username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE LIMIT 1', [identifier, identifier.toLowerCase()])
+  const row = await findLocalUserByIdentifier(identifier)
   if (!row || !(await verifySecret(key, row.recovery_key_hash))) throw new Error('Dados de recuperação inválidos')
   await execute('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [await hashSecret(newPassword), row.id])
   return { message: 'Senha redefinida com sucesso' }

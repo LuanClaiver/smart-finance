@@ -1,6 +1,10 @@
-# Smart Finance Mobile 0.4.1
+# Smart Finance Mobile 0.4.3
 
 Aplicativo Android local criado com React, Capacitor e SQLite.
+
+## Regra de mês das despesas
+
+Toda despesa aparece no mês do vencimento. Exemplo: um lançamento criado em agosto com vencimento em 08/09/2026 fica em setembro de 2026. Bancos antigos são normalizados automaticamente.
 
 ## Acesso inicial
 

@@ -64,7 +64,7 @@ android {
     }
   }
   $packageFile = Join-Path (Split-Path $AndroidPath -Parent) 'package.json'
-  $versionName = '0.4.1'
+  $versionName = '0.4.3'
   if (Test-Path $packageFile) {
     try {
       $package = Get-Content $packageFile -Raw | ConvertFrom-Json
@@ -72,7 +72,7 @@ android {
         $versionName = [string]$package.version
       }
     } catch {
-      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.4.1.'
+      Write-Warning 'Não foi possível ler a versão do package.json; usando 0.4.3.'
     }
   }
   $content = $content -replace 'versionCode\s+\d+', "versionCode $runNumber"

@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ModalCard from '../components/ModalCard'
 import PageHeader from '../components/PageHeader'
+import MoneyInput from '../components/MoneyInput'
 import { api, currentMonth, jsonBody, money, today } from '../services/api'
 import { confirmAction } from '../services/confirm'
 import { readNavigationTarget, scrollToTarget } from '../services/navigation'
@@ -25,7 +26,7 @@ function payloadFromExpense(item: Expense, changes: Partial<Expense> = {}) {
     account_id: value.account_id ?? null,
     card_id: value.card_id ?? null,
     installments: 1,
-    list_month: value.list_month || value.billing_month,
+    list_month: value.due_date?.slice(0, 7) || value.list_month || value.billing_month,
   }
 }
 
@@ -263,12 +264,12 @@ export default function ExpensesPage() {
           category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: editing.expense_type || 'variable',
           payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
           status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
-          card_id: cardId, installments: 1, list_month: cardId ? dueDate.slice(0, 7) : editing.list_month || month,
+          card_id: cardId, installments: 1, list_month: dueDate.slice(0, 7),
         }) })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
         closeForm()
         await loadExpenses(month)
-        toast.success('Despesa atualizada', updated.card_id && updated.list_month !== month ? `${updated.description} agora aparece em ${monthLabel(updated.list_month)}, mês do vencimento.` : `${updated.description} foi atualizada.`)
+        toast.success('Despesa atualizada', updated.list_month !== month ? `${updated.description} agora aparece em ${monthLabel(updated.list_month)}, mês do vencimento.` : `${updated.description} foi atualizada.`)
       } else if (fixed) {
         const result = await api<{ generated: number }>('/recurring-expenses', { method: 'POST', ...jsonBody({
           description: form.get('description'), amount: Number(form.get('amount')), due_day: Number(form.get('due_day')),
@@ -287,7 +288,7 @@ export default function ExpensesPage() {
           category_id: form.get('category_id') ? Number(form.get('category_id')) : null, expense_type: 'variable',
           payment_method: cardId ? 'credit_card' : paymentMethod, merchant: form.get('merchant') || '', notes: form.get('notes') || '',
           status: normalizedStatus, account_id: form.get('account_id') ? Number(form.get('account_id')) : null,
-          card_id: cardId, installments: Number(form.get('installments') || 1), list_month: cardId ? dueDate.slice(0, 7) : month,
+          card_id: cardId, installments: Number(form.get('installments') || 1), list_month: dueDate.slice(0, 7),
         }) })
         const visibleNow = created.filter((item) => item.list_month === month)
         setItems((current) => mergeExpenses(current, visibleNow))
@@ -295,10 +296,10 @@ export default function ExpensesPage() {
         await loadExpenses(month)
         const first = created[0]
         const targetMonth = first?.list_month || month
-        const invoiceMessage = first?.card_id && targetMonth !== month
-          ? ` Como é cartão, o lançamento aparece em ${monthLabel(targetMonth)}, mês do vencimento.`
-          : ''
-        toast.success('Despesa salva', `${created.length} lançamento(s) adicionado(s).${invoiceMessage || ` O lançamento aparece em ${monthLabel(targetMonth)}.`}`)
+        const dueMonthMessage = targetMonth !== month
+          ? ` Como o vencimento é em ${monthLabel(targetMonth)}, o lançamento foi enviado para esse mês.`
+          : ` O lançamento aparece em ${monthLabel(targetMonth)}.`
+        toast.success('Despesa salva', `${created.length} lançamento(s) adicionado(s).${dueMonthMessage}`)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar'
@@ -365,7 +366,7 @@ export default function ExpensesPage() {
       <h3 className="form-title wide">{editing ? 'Editar despesa ou pagamento' : 'Nova despesa'}</h3>
       {!editing && <label className="toggle-line wide"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> Criar como gasto fixo mensal</label>}
       <label className="wide">Descrição<input name="description" required defaultValue={editing?.description || ''} /></label>
-      <label>Valor<input name="amount" type="number" step="0.01" min="0" required defaultValue={editing ? Number(editing.amount) : ''} /></label>
+      <label>Valor<MoneyInput name="amount" required defaultValue={editing ? Number(editing.amount) : ''} /></label>
       <label>Categoria<select name="category_id" defaultValue={editing?.category_id || ''}><option value="">Sem categoria</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>Estabelecimento<input name="merchant" defaultValue={editing?.merchant || ''} /></label>
       <label>Forma de pagamento<select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pix">Pix</option><option value="debit">Débito</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option><option value="boleto">Boleto</option>{!fixed && <option value="credit_card">Cartão de crédito</option>}</select></label>

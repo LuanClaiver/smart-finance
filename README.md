@@ -1,4 +1,15 @@
-# Smart Finance 0.4.1
+# Smart Finance 0.4.3
+
+## Alterações da versão 0.4.3
+- Toda despesa passa a pertencer ao **mês do vencimento**, independentemente da forma de pagamento ou do mês em que foi cadastrada.
+- Exemplo validado: uma despesa cadastrada em agosto com vencimento em `08/09/2026` não aparece em agosto e aparece em setembro de 2026.
+- Painel, relatórios, alertas, versão Windows e aplicativo Android utilizam a mesma regra.
+- Migração automática corrige os lançamentos já existentes para o mês indicado em `due_date`.
+
+## Alterações da versão 0.4.2
+- Campos monetários usam formato brasileiro: ao digitar `1000`, o campo é normalizado para `1.000,00`; centavos podem ser informados com vírgula ou ponto e são exibidos sempre com duas casas.
+- Ajuste aplicado a rendas, despesas, contas, cartões, empréstimos e parcelas, no computador e no aplicativo mobile.
+- Login reforçado para aceitar nome de usuário ou e-mail; o administrador padrão também pode entrar com `Admin` / `1234` ou `admin@smartfinance.com` / `1234`.
 
 Aplicativo financeiro local desenvolvido por **Luan Claiver — 2026**.
 
